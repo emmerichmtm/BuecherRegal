@@ -1,0 +1,472 @@
+<!-- ============ FRONT MATTER ============ -->
+<div class="page-break cover-page" data-nopaginate="1">
+  <div class="cover">
+    <div class="cover-rule"></div>
+    <div class="cover-kicker">A Learning Companion</div>
+    <h1 class="cover-title">Sections 5 &amp; 6</h1>
+    <div class="cover-sub">Two-Selector Fourier Decomposition,<br>the Angular Law,<br>and Rational Field Compensation</div>
+    <div class="cover-orn">&#10087;</div>
+    <div class="cover-meta">
+      Companion notes for the planar Riesz \(s=2\) reduction<br>
+      <span class="cover-dim">to <i>Riesz \(s\)-Energy Subset Selection is<br>NP-Hard in the Euclidean Plane</i></span>
+      <div class="cover-date">August 2026</div>
+    </div>
+    <div class="cover-rule"></div>
+  </div>
+</div>
+
+<div class="page-break howto-page" data-nopaginate="1">
+  <h2 class="fm-head">Abstract</h2>
+  <p class="abstract">This note is a self-contained learning companion to Sections 5 and 6 of the manuscript <i>Riesz \(s\)-Energy Subset Selection is NP-Hard in the Euclidean Plane</i>. Its purpose is not to shorten those proofs, but to explain what the lemmas are doing, why the formulas have the form they do, and how the estimates fit into the reduction. The two main ideas are simple once separated from the notation. First, the &ldquo;Fourier decomposition&rdquo; is only the exact four-term expansion of a function of two binary spins in the basis \(1,\sigma,\tau,\sigma\tau\). Second, the field-compensation lemma uses the extreme sensitivity of the short diagonal energy to a minute rational change of its length. We derive the key formulas, explain the Taylor and geometric-series tails, and work through axis-aligned and 45&#176; examples numerically. A short appendix also reviews the lattice-tail estimates that occur later in the normalization argument, since they use the same style of summability reasoning.</p>
+</div>
+
+<div class="page-break howto-page" data-nopaginate="1">
+  <h2 class="fm-head">How to use this book</h2>
+  <ul class="howto">
+    <li><b>Turn pages</b> by clicking the outer edge of a page, using the arrows below the book, or pressing <kbd>&larr;</kbd> / <kbd>&rarr;</kbd>.</li>
+    <li><b>Highlight</b> with the marker &mdash; drag across any line, including displayed formulas. Press <kbd>H</kbd>.</li>
+    <li><b>Write</b> with the pencil for margin scribbles and arrows. Press <kbd>P</kbd>.</li>
+    <li><b>Pin a note</b> anywhere on the page and type into it. Press <kbd>N</kbd>.</li>
+    <li><b>Erase</b> with <kbd>E</kbd>, undo with <kbd>Ctrl</kbd>+<kbd>Z</kbd>, and return to plain reading with <kbd>R</kbd>.</li>
+    <li><b>Go full screen</b> with the expand button in the toolbar, or press <kbd>F</kbd>.</li>
+    <li>Everything you write is saved in this browser automatically. Use <b>Export</b> in the toolbar to keep a backup of your annotations.</li>
+  </ul>
+</div>
+
+<div class="page-break howto-page" data-nopaginate="1">
+  <h2 class="fm-head">Notation at a glance</h2>
+  <dl class="glossary">
+    <dt>\(\sigma,\tau\in\{-1,+1\}\)</dt><dd>the state of a selector cell &mdash; which of its two diagonals is chosen.</dd>
+    <dt>\(b\)</dt><dd>the selector radius. The small parameter of the whole construction.</dd>
+    <dt>\(R,\ r=\lVert R\rVert,\ \theta\)</dt><dd>centre-to-centre vector between two cells, its length, and its direction.</dd>
+    <dt>\(t=b/r\)</dt><dd>the expansion parameter; the theorem works at \(t\le10^{-8}\).</dd>
+    <dt>\(A_R,\ h_R^{(1)},\ h_R^{(2)},\ J_R\)</dt><dd>the four Fourier coefficients of a pair: constant, two one-spin fields, and the spin&ndash;spin coupling.</dd>
+    <dt>\(G_i\)</dt><dd>the unwanted one-spin field a cell inherits from all the others.</dd>
+    <dt>\(g_i,\ \lambda\)</dt><dd>the target field the reduction wants, and the logical Ising scale \(\lambda\asymp b^4\).</dd>
+    <dt>\(\eta_i\)</dt><dd>the tiny rational lengthening of cell \(i\)&rsquo;s \(+\) diagonal.</dd>
+    <dt>\(\beta=-\tfrac18b^{-3}\)</dt><dd>how fast that lengthening moves the local field.</dd>
+    <dt>\(M\)</dt><dd>the number of selector cells in the instance.</dd>
+  </dl>
+  <div class="fm-divider">&#10086;</div>
+  <p class="fm-foot">Three scales govern everything: \(b^{-2}\) forces each cell into a bit, \(b^{2}r^{-4}\) is the
+  unwanted field, and \(b^{4}r^{-6}\) is the logical coupling the reduction actually uses.</p>
+</div>
+
+<div class="page-break toc-page" data-nopaginate="1" id="tocPage">
+  <h2 class="fm-head">Contents</h2>
+  <div id="tocBody" class="toc-body"></div>
+</div>
+
+<!-- ============ BODY ============ -->
+<h1 data-num="1">What Sections 5 and 6 are trying to achieve</h1>
+
+<p class="opening">By the end of Section 4 of the manuscript, every selector cell behaves as a binary object: exactly one of its two diagonals is chosen. We therefore have a spin variable</p>
+<div class="eq">\[\sigma\in\{-1,+1\}\]</div>
+<p>for each selector cell. The remaining question is not whether a cell carries a bit, but <i>how two such bits interact through the Riesz energy</i>.</p>
+<p>Sections 5 and 6 answer two different questions.</p>
+
+<p><b class="runin">Section 5: identify the effective interaction.</b> Take two selector cells with center difference \(R\). For each of the four choices \((\sigma,\tau)\in\{-1,+1\}^2\), compute the total Riesz interaction between the two selected diagonals. Section 5 proves that these four energies can be written exactly as</p>
+<div class="eq">\[A_R+h_R^{(1)}\sigma+h_R^{(2)}\tau+J_R\sigma\tau.\]</div>
+<p>Here \(A_R\) is irrelevant to optimization, the \(h\) terms are one-spin biases, and \(J_R\) is the actual two-spin coupling. The angular expansion then proves the decisive sign change:</p>
+<ul>
+  <li>axis-aligned selectors have \(J_R&lt;0\) and zero one-spin field, so they prefer the <i>same</i> state and form consistency wires;</li>
+  <li>selectors separated at 45&#176; have \(J_R&gt;0\), so they prefer <i>opposite</i> states and can encode an antiferromagnetic source edge.</li>
+</ul>
+
+<p><b class="runin">Section 6: remove unwanted one-spin biases.</b> Non-axis pairs, including the desired 45&#176; pairs, generally generate one-spin fields \(h_R^{(i)}\). If left untreated, the geometry itself would bias some selector cells in uncontrolled ways. Section 6 perturbs one diagonal of each selector by a tiny rational amount \(\eta_i\). This creates a controllable local field. The perturbation is chosen so that the total field at each cell equals the target field required by the Ising reduction, up to an error far below the later gap budget.</p>
+
+<p><b class="runin">The conceptual dependency.</b> Section 5 tells us <i>what interaction geometry naturally produces</i>. Section 6 tells us <i>how to correct the unwanted local part without destroying the useful pairwise part</i>.</p>
+
+<h1 data-num="2">The selector as a binary spin</h1>
+
+<p class="opening">A selector centered at \(c\in\mathbb{R}^2\) has four candidate points</p>
+<div class="eq">\[c+(\pm b,\pm b).\]</div>
+<p>After the forcing lemma from Section 4, only the two diagonals matter. Write</p>
+<div class="eq">\[u_+=(1,1),\qquad u_-=(1,-1).\]</div>
+<p>Then the two points selected in state \(\sigma\in\{-1,+1\}\) are</p>
+<div class="eq">\[c+b u_\sigma,\qquad c-bu_\sigma.\]</div>
+
+<figure class="figure">
+<svg viewBox="0 0 520 200" role="img" aria-label="Two selector states">
+  <g transform="translate(130,86)">
+    <rect x="-56" y="-56" width="112" height="112" fill="none" stroke="var(--figline-soft)" stroke-width="1.2"/>
+    <line x1="-44" y1="44" x2="44" y2="-44" stroke="var(--fig-accent)" stroke-width="2.8" stroke-linecap="round"/>
+    <circle cx="-44" cy="-44" r="4.8" fill="var(--figline)"/><circle cx="44" cy="-44" r="4.8" fill="var(--figline)"/>
+    <circle cx="-44" cy="44" r="4.8" fill="var(--figline)"/><circle cx="44" cy="44" r="4.8" fill="var(--figline)"/>
+    <text x="0" y="84" text-anchor="middle" class="figlabel">&#963; = +1</text>
+  </g>
+  <g transform="translate(390,86)">
+    <rect x="-56" y="-56" width="112" height="112" fill="none" stroke="var(--figline-soft)" stroke-width="1.2"/>
+    <line x1="-44" y1="-44" x2="44" y2="44" stroke="var(--fig-accent2)" stroke-width="2.8" stroke-linecap="round"/>
+    <circle cx="-44" cy="-44" r="4.8" fill="var(--figline)"/><circle cx="44" cy="-44" r="4.8" fill="var(--figline)"/>
+    <circle cx="-44" cy="44" r="4.8" fill="var(--figline)"/><circle cx="44" cy="44" r="4.8" fill="var(--figline)"/>
+    <text x="0" y="84" text-anchor="middle" class="figlabel">&#963; = &#8722;1</text>
+  </g>
+</svg>
+<figcaption><b>Figure 1.</b> One selector cell has two logical states, namely its two diagonals.</figcaption>
+</figure>
+
+<p>This is important for Section 5: once selector forcing has been proved, the interaction of two cells is just a function on four inputs,</p>
+<div class="eq">\[(+,+),\quad (+,-),\quad (-,+),\quad (-,-).\]</div>
+<p>There is no longer any combinatorial ambiguity inside the cell.</p>
+
+<h1 data-num="3">The &ldquo;Fourier&rdquo; decomposition is only a four-entry truth table</h1>
+
+<p class="opening">The word <i>Fourier</i> can make the argument sound more sophisticated than it is. Here it refers to the discrete Fourier basis on the two-point set \(\{-1,+1\}\). For two spins, the four basis functions are</p>
+<div class="eq">\[1,\qquad \sigma,\qquad \tau,\qquad \sigma\tau.\]</div>
+<p>They form a basis for <i>every</i> real-valued function of \((\sigma,\tau)\) because there are exactly four input pairs and four basis functions.</p>
+<p>Suppose we know four numbers</p>
+<div class="eq">\[F_{++},\quad F_{+-},\quad F_{-+},\quad F_{--}.\]</div>
+<p>Then there are unique numbers \(A,h_1,h_2,J\) satisfying</p>
+<div class="eq">\[F(\sigma,\tau)=A+h_1\sigma+h_2\tau+J\sigma\tau.\tag{1}\]</div>
+<p>Substituting the four spin pairs gives the linear system</p>
+<div class="eq">\[\begin{array}{c|rrrr} &amp;A&amp;h_1&amp;h_2&amp;J\\ \hline F_{++}&amp;1&amp;1&amp;1&amp;1\\ F_{+-}&amp;1&amp;1&amp;-1&amp;-1\\ F_{-+}&amp;1&amp;-1&amp;1&amp;-1\\ F_{--}&amp;1&amp;-1&amp;-1&amp;1\end{array}\]</div>
+<p>The matrix is a \(4\times4\) Hadamard matrix. Its inverse is one quarter of itself. Therefore</p>
+<div class="eq">\[\begin{aligned} A&amp;=\tfrac14(F_{++}+F_{+-}+F_{-+}+F_{--}),\\ h_1&amp;=\tfrac14(F_{++}+F_{+-}-F_{-+}-F_{--}),\\ h_2&amp;=\tfrac14(F_{++}-F_{+-}+F_{-+}-F_{--}),\\ J&amp;=\tfrac14(F_{++}-F_{+-}-F_{-+}+F_{--}).\end{aligned}\]</div>
+
+<p><b class="runin">Interpretation of the four coefficients.</b> \(A\) shifts all four energies by the same amount and therefore has no effect on which spin assignment is best. \(h_1\) prefers one sign of \(\sigma\); \(h_2\) prefers one sign of \(\tau\). Finally, \(J\) measures the preference for agreement versus disagreement.</p>
+<p>If J &lt; 0, then the term \(J\sigma\tau\) is smaller when \(\sigma\tau=+1\), so equal spins are preferred: this is ferromagnetic. If J &gt; 0, then the term is smaller when \(\sigma\tau=-1\), so opposite spins are preferred: this is antiferromagnetic.</p>
+
+<h2>A tiny numerical truth-table example</h2>
+<p>Suppose, just as an abstract example,</p>
+<div class="eq">\[F_{++}=10.2,\quad F_{+-}=10.8,\quad F_{-+}=10.8,\quad F_{--}=10.2.\]</div>
+<p>Then \(h_1=h_2=0\) by symmetry, while</p>
+<div class="eq">\[J=\tfrac14(10.2-10.8-10.8+10.2)=-0.3.\]</div>
+<p>Thus the pair is field-free and ferromagnetic. This is exactly the pattern we want from an axis-aligned wire edge.</p>
+
+<h1 data-num="4">The exact two-selector interaction</h1>
+<p class="opening">Place one selector at the origin and the second at center vector \(R\neq0\). In states \(\sigma,\tau\), the selected points are</p>
+<div class="eq">\[\pm b u_\sigma \qquad\text{and}\qquad R\pm b u_\tau.\]</div>
+<p>Every point in the first selector interacts with every point in the second. There are four point-pair terms. Their total is</p>
+<div class="eq">\[F_R(\sigma,\tau)=\sum_{\epsilon,\eta\in\{-1,+1\}}\bigl\lVert R+b(\eta u_\tau-\epsilon u_\sigma)\bigr\rVert^{-2}.\tag{2}\]</div>
+<p>This is the function whose four values are decomposed by the previous section.</p>
+<p>The formula looks complicated, but geometrically it says only this: start with the center-to-center vector \(R\), then add a tiny offset of size \(O(b)\) caused by which endpoints of the two diagonals are being compared.</p>
+
+<h1 data-num="5">Why a small-parameter expansion is appropriate</h1>
+<p class="opening">Write</p>
+<div class="eq">\[r=\lVert R\rVert,\qquad \widehat R=R/r,\qquad t=b/r.\]</div>
+<p>The whole construction chooses \(b\) vastly smaller than every center-to-center spacing, so \(t\) is tiny. For one point-pair term define</p>
+<div class="eq">\[v=\eta u_\tau-\epsilon u_\sigma.\]</div>
+<p>Then</p>
+<div class="eq">\[\lVert R+bv\rVert^2=r^2\left(1+2t\widehat R\cdot v+t^2\lVert v\rVert^2\right).\]</div>
+<p>If \(z=2t\widehat R\cdot v+t^2\lVert v\rVert^2\), then</p>
+<div class="eq">\[\lVert R+bv\rVert^{-2}=r^{-2}(1+z)^{-1}.\tag{3}\]</div>
+<p>Now use the elementary geometric series</p>
+<div class="eq">\[(1+z)^{-1}=1-z+z^2-z^3+z^4-z^5+\cdots,\]</div>
+<p>valid for \(|z|&lt;1\).</p>
+<p>Because \(\lVert u_\pm\rVert=\sqrt2\), one has \(\lVert v\rVert\le2\sqrt2\). Hence Section 5 uses the simple bound \(|z|&lt;6t\). With \(t\le10^{-8}\), this is extremely small.</p>
+
+<p><b class="runin">Why expand through fourth order?</b> The spin&ndash;spin coupling \(J_R\) has cancellations at lower orders. Its first nonzero contribution appears at order \(t^4\). Since the whole energy term has the outside factor \(r^{-2}\), the leading spin&ndash;spin scale is</p>
+<div class="eq">\[r^{-2}t^4=b^4r^{-6}.\]</div>
+<p>The one-spin field appears already at order \(t^2\), hence its leading scale is</p>
+<div class="eq">\[r^{-2}t^2=b^2r^{-4}.\]</div>
+<p>This explains the two characteristic decay laws in the manuscript before any coefficient is calculated.</p>
+
+<h1 data-num="6">The angular law and what it means</h1>
+<p class="opening">Write the direction of \(R\) as \(\widehat R=(\cos\theta,\sin\theta)\). After expanding all four point-pair terms for each spin state and applying the four-entry Fourier projection, Section 5 obtains</p>
+<div class="eq">\[J_R=\bigl(384\sin^2(2\theta)-160\bigr)b^4r^{-6}+\mathcal R_J,\tag{4}\]</div>
+<div class="eq">\[h_R^{(1)}=h_R^{(2)}=16\sin(2\theta)b^2r^{-4}+128\sin(2\theta)b^4r^{-6}+\mathcal R_h.\tag{5}\]</div>
+<p>The exact derivation is algebra, but the qualitative content is easy to read from the formulas.</p>
+
+<h2>Axis direction</h2>
+<p>For an axis-aligned pair, say \(\theta=0\), we have \(\sin(2\theta)=0\). Hence the leading coupling is</p>
+<div class="eq">\[J_R\approx-160b^4r^{-6}&lt;0,\]</div>
+<p>and the one-spin field vanishes. In fact the field vanishes <i>exactly</i>, not merely to leading order, because reflecting the geometry across the axis exchanges the two diagonal states while leaving all distances unchanged.</p>
+<p>Therefore an axis-aligned neighboring pair is a field-free ferromagnetic edge. This is why it can be used as a wire segment.</p>
+
+<h2>The 45&#176; direction</h2>
+<p>At \(\theta=45^\circ\), we have \(\sin(2\theta)=1\). Thus \(384\sin^2(2\theta)-160=224&gt;0\), so</p>
+<div class="eq">\[J_R\approx224b^4r^{-6}&gt;0.\]</div>
+<p>This pair prefers opposite spins and is antiferromagnetic. It is therefore suitable for representing a source-graph edge.</p>
+<p>Unlike the axis case, the field is now nonzero because \(\sin(2\theta)=1\). That unwanted one-spin term is precisely the reason Section 6 is needed.</p>
+
+<h2>Where does the sign change happen?</h2>
+<p>Ignoring the tiny remainder, \(J_R\) changes sign when \(384\sin^2(2\theta)-160=0\), or equivalently</p>
+<div class="eq">\[\sin^2(2\theta)=\frac5{12}.\]</div>
+<p>In the first quadrant this occurs at approximately \(\theta\approx20.1^\circ\) and symmetrically near \(69.9^\circ\). So the sign difference between \(0^\circ\) and 45&#176; is not a knife-edge phenomenon; there is a broad angular interval around \(45^\circ\) with positive coupling.</p>
+
+<figure class="figure">
+<svg viewBox="0 0 520 250" role="img" aria-label="Angular coupling law">
+  <defs><clipPath id="plotclip"><rect x="56" y="18" width="418" height="180"/></clipPath></defs>
+  <rect x="56" y="18" width="418" height="180" fill="var(--plot-bg)" stroke="none"/>
+  <g clip-path="url(#plotclip)">
+    <rect x="56" y="18" width="418" height="105" fill="var(--plot-pos)"/>
+  </g>
+  <line x1="56" y1="123" x2="474" y2="123" stroke="var(--figline)" stroke-width="1.4"/>
+  <line x1="56" y1="18" x2="56" y2="198" stroke="var(--figline)" stroke-width="1.4"/>
+  <polyline points="56.0,198.0 58.3,197.9 60.6,197.8 63.0,197.5 65.3,197.1 67.6,196.6 69.9,196.0 72.3,195.3 74.6,194.5 76.9,193.6 79.2,192.6 81.5,191.4 83.9,190.2 86.2,188.9 88.5,187.5 90.8,185.9 93.2,184.3 95.5,182.6 97.8,180.8 100.1,178.9 102.4,176.9 104.8,174.9 107.1,172.7 109.4,170.5 111.7,168.2 114.1,165.9 116.4,163.4 118.7,160.9 121.0,158.3 123.3,155.7 125.7,153.0 128.0,150.3 130.3,147.5 132.6,144.6 135.0,141.7 137.3,138.8 139.6,135.8 141.9,132.8 144.2,129.8 146.6,126.7 148.9,123.6 151.2,120.5 153.5,117.4 155.9,114.3 158.2,111.1 160.5,108.0 162.8,104.9 165.1,101.7 167.5,98.6 169.8,95.5 172.1,92.4 174.4,89.3 176.8,86.2 179.1,83.2 181.4,80.2 183.7,77.2 186.0,74.3 188.4,71.4 190.7,68.5 193.0,65.7 195.3,63.0 197.7,60.3 200.0,57.7 202.3,55.1 204.6,52.6 206.9,50.1 209.3,47.8 211.6,45.5 213.9,43.3 216.2,41.1 218.6,39.1 220.9,37.1 223.2,35.2 225.5,33.4 227.8,31.7 230.2,30.1 232.5,28.5 234.8,27.1 237.1,25.8 239.5,24.6 241.8,23.4 244.1,22.4 246.4,21.5 248.7,20.7 251.1,20.0 253.4,19.4 255.7,18.9 258.0,18.5 260.4,18.2 262.7,18.1 265.0,18.0 267.3,18.1 269.6,18.2 272.0,18.5 274.3,18.9 276.6,19.4 278.9,20.0 281.3,20.7 283.6,21.5 285.9,22.4 288.2,23.4 290.5,24.6 292.9,25.8 295.2,27.1 297.5,28.5 299.8,30.1 302.2,31.7 304.5,33.4 306.8,35.2 309.1,37.1 311.4,39.1 313.8,41.1 316.1,43.3 318.4,45.5 320.7,47.8 323.1,50.1 325.4,52.6 327.7,55.1 330.0,57.7 332.3,60.3 334.7,63.0 337.0,65.7 339.3,68.5 341.6,71.4 344.0,74.3 346.3,77.2 348.6,80.2 350.9,83.2 353.2,86.2 355.6,89.3 357.9,92.4 360.2,95.5 362.5,98.6 364.9,101.7 367.2,104.9 369.5,108.0 371.8,111.1 374.1,114.3 376.5,117.4 378.8,120.5 381.1,123.6 383.4,126.7 385.8,129.8 388.1,132.8 390.4,135.8 392.7,138.8 395.0,141.7 397.4,144.6 399.7,147.5 402.0,150.3 404.3,153.0 406.7,155.7 409.0,158.3 411.3,160.9 413.6,163.4 415.9,165.9 418.3,168.2 420.6,170.5 422.9,172.7 425.2,174.9 427.6,176.9 429.9,178.9 432.2,180.8 434.5,182.6 436.8,184.3 439.2,185.9 441.5,187.5 443.8,188.9 446.1,190.2 448.5,191.4 450.8,192.6 453.1,193.6 455.4,194.5 457.7,195.3 460.1,196.0 462.4,196.6 464.7,197.1 467.0,197.5 469.4,197.8 471.7,197.9 474.0,198.0 " fill="none" stroke="var(--fig-accent)" stroke-width="2.6" stroke-linejoin="round"/>
+  <circle cx="149.4" cy="123" r="4" fill="var(--fig-accent2)"/>
+  <circle cx="380.6" cy="123" r="4" fill="var(--fig-accent2)"/>
+  <line x1="56" y1="198" x2="56" y2="204" stroke="var(--figline)"/><text x="56" y="219" text-anchor="middle" class="figtick">0&#176;</text>
+  <line x1="149.4" y1="198" x2="149.4" y2="204" stroke="var(--figline)"/><text x="149.4" y="219" text-anchor="middle" class="figtick">20.1&#176;</text>
+  <line x1="265" y1="198" x2="265" y2="204" stroke="var(--figline)"/><text x="265" y="219" text-anchor="middle" class="figtick">45&#176;</text>
+  <line x1="380.6" y1="198" x2="380.6" y2="204" stroke="var(--figline)"/><text x="380.6" y="219" text-anchor="middle" class="figtick">69.9&#176;</text>
+  <line x1="474" y1="198" x2="474" y2="204" stroke="var(--figline)"/><text x="474" y="219" text-anchor="middle" class="figtick">90&#176;</text>
+  <text x="48" y="23" text-anchor="end" class="figtick">224</text>
+  <text x="48" y="127" text-anchor="end" class="figtick">0</text>
+  <text x="48" y="196" text-anchor="end" class="figtick">&#8722;160</text>
+  <text x="265" y="58" text-anchor="middle" class="figlabel-sm">antiferromagnetic &#8212; source edges</text>
+  <text x="90" y="180" text-anchor="start" class="figlabel-sm">ferromagnetic &#8212; wires</text>
+</svg>
+<figcaption><b>Figure 2.</b> The leading angular coefficient \(384\sin^2(2\theta)-160\). It is negative on the axes and positive across a broad band centred on 45&#176;; the two roots sit at \(\theta\approx20.1^\circ\) and \(69.9^\circ\).</figcaption>
+</figure>
+
+<figure class="figure">
+<svg viewBox="0 0 520 190" role="img" aria-label="Axis pair versus 45 degree pair">
+  <g>
+    <rect x="42" y="62" width="34" height="34" fill="none" stroke="var(--figline)" stroke-width="1.6"/>
+    <line x1="48" y1="90" x2="70" y2="68" stroke="var(--fig-accent)" stroke-width="2"/>
+    <rect x="158" y="62" width="34" height="34" fill="none" stroke="var(--figline)" stroke-width="1.6"/>
+    <line x1="164" y1="90" x2="186" y2="68" stroke="var(--fig-accent)" stroke-width="2"/>
+    <line x1="76" y1="79" x2="158" y2="79" stroke="var(--figline)" stroke-width="2"/>
+    <text x="117" y="132" text-anchor="middle" class="figlabel-sm">axis: J &lt; 0, same state</text>
+    <text x="117" y="150" text-anchor="middle" class="figlabel-sm">preferred</text>
+  </g>
+  <g>
+    <rect x="320" y="112" width="34" height="34" fill="none" stroke="var(--figline)" stroke-width="1.6"/>
+    <line x1="326" y1="140" x2="348" y2="118" stroke="var(--fig-accent)" stroke-width="2"/>
+    <rect x="416" y="26" width="34" height="34" fill="none" stroke="var(--figline)" stroke-width="1.6"/>
+    <line x1="422" y1="54" x2="444" y2="32" stroke="var(--fig-accent2)" stroke-width="2"/>
+    <line x1="352" y1="114" x2="418" y2="58" stroke="var(--figline)" stroke-width="2" stroke-dasharray="6 5"/>
+    <text x="385" y="176" text-anchor="middle" class="figlabel-sm">45&#176;: J &gt; 0, opposite states</text>
+  </g>
+</svg>
+<figcaption><b>Figure 3.</b> The same selector object produces opposite effective coupling signs depending on orientation.</figcaption>
+</figure>
+
+<h1 data-num="7">Worked numerical examples for Section 5</h1>
+<p class="opening">The theorem uses \(t=b/r\le10^{-8}\), but to make the numbers visible we take the pedagogical value \(b=0.01\). These examples illustrate the formulas; they are not the theorem-scale parameter choice.</p>
+
+<h2>Axis example: \(R=(1,0)\)</h2>
+<p>Direct evaluation of the four two-selector energies gives approximately</p>
+<div class="eq">\[\begin{array}{c|cc} &amp;\tau=+1&amp;\tau=-1\\ \hline \sigma=+1&amp;4.001598719&amp;4.001601921\\ \sigma=-1&amp;4.001601921&amp;4.001598719\end{array}\]</div>
+<p>The Fourier coefficients are</p>
+<div class="eq">\[h_1=h_2=0,\qquad J\approx-1.60090\times10^{-6}.\]</div>
+<p>The leading formula predicts \(-160b^4=-1.60000\times10^{-6}\), which already matches closely at the deliberately large value \(b=0.01\).</p>
+<p>Notice the truth-table pattern: equal-spin entries are lower than opposite-spin entries. That is ferromagnetic behavior.</p>
+
+<h2>45&#176; example: \(R=(1,1)\)</h2>
+<p>Now \(r=\sqrt2\) and the four energies are approximately</p>
+<div class="eq">\[\begin{array}{c|cc} &amp;\tau=+1&amp;\tau=-1\\ \hline \sigma=+1&amp;2.001200800&amp;2.000399920\\ \sigma=-1&amp;2.000399920&amp;1.999600160\end{array}\]</div>
+<p>The extracted coefficients are</p>
+<div class="eq">\[h_1=h_2\approx4.00160\times10^{-4},\qquad J\approx2.80104\times10^{-7}.\]</div>
+<p>The leading angular law predicts</p>
+<div class="eq">\[J\approx224b^4(\sqrt2)^{-6}=2.8\times10^{-7}.\]</div>
+<p>The sign is now positive, so disagreement is preferred. The nonzero \(h\) is also plainly visible: the four energies are not symmetric under simultaneously exchanging only one spin label.</p>
+
+<h1 data-num="8">How the tail or remainder estimate works</h1>
+<p class="opening">Section 5 contains two kinds of &ldquo;tail&rdquo; reasoning that are easy to conflate.</p>
+<p><b class="runin">1. The geometric-series tail.</b> Equation (3) uses \((1+z)^{-1}\). After keeping powers through \(z^4\), the omitted geometric tail is</p>
+<div class="eq">\[-z^5+z^6-z^7+\cdots.\]</div>
+<p>For \(|z|&lt;1\) its absolute value is at most \(\dfrac{|z|^5}{1-|z|}\). Since \(|z|&lt;6t\) and \(t\le10^{-8}\), this is tiny.</p>
+<p><b class="runin">2. Higher powers of \(t\) hidden inside the kept terms.</b> The quantity \(z\) itself contains both a term proportional to \(t\) and one proportional to \(t^2\). Thus even \(z^2,z^3,z^4\) contain monomials of order \(t^5\) and above. Those must also be placed into the remainder after extracting all terms through order \(t^4\).</p>
+<p>The manuscript combines both sources of error into the deliberately generous bound</p>
+<div class="eq">\[\lvert\mathcal R_J\rvert+\lvert\mathcal R_h\rvert\le10^6 b^5r^{-7}.\tag{6}\]</div>
+<p>The constant \(10^6\) is not meant to be sharp. It absorbs all point-pair terms, all Fourier signs, and all higher-order monomials in one easy number.</p>
+<p><b class="runin">Why this is enough for the sign.</b> At the spin&ndash;spin scale,</p>
+<div class="eq">\[10^6b^5r^{-7}=10^6\frac br\,b^4r^{-6}\le0.01\,b^4r^{-6}\]</div>
+<p>when \(b/r\le10^{-8}\). Compare this with a leading coefficient of magnitude \(160\) on the axis or \(224\) at 45&#176;. The error budget is microscopic relative to the sign margin. Hence the manuscript safely concludes</p>
+<div class="eq">\[J_R&lt;-159b^4r^{-6}\quad\text{on an axis}\]</div>
+<p>and</p>
+<div class="eq">\[J_R&gt;223b^4r^{-6}\quad\text{at }45^\circ.\]</div>
+
+<h1 data-num="9">Section 5 distilled into one lemma</h1>
+<div class="lemma"><div class="lemma-head">Lemma 1 &nbsp;<span class="lemma-name">What Section 5 proves, in words</span></div>
+<p>For sufficiently small selector radius relative to center separation, every pair of valid selector states has an exact Ising-form interaction. The spin&ndash;spin coefficient is of order \(b^4r^{-6}\) and changes sign with orientation. Axis-aligned pairs are exactly field-free and ferromagnetic; 45&#176; pairs are antiferromagnetic. All neglected higher-order terms are too small to change these signs.</p></div>
+
+<p>This lemma supplies the two geometric primitives used later:</p>
+<div class="eq eq-tight">\[\boxed{\text{axis pair}\;=\;\text{wire consistency}}\]</div>
+<p class="eq-and">and</p>
+<div class="eq eq-tight">\[\boxed{45^\circ\text{ pair}\;=\;\text{source-edge interaction}}\]</div>
+
+<h1 data-num="10">Why Section 6 is necessary</h1>
+<p class="opening">The angular law has a complication. The 45&#176; pair gives the desired positive \(J_R\), but it also gives a one-spin field of order \(b^2r^{-4}\), which is actually much larger in scale than \(J_R\), whose leading order is \(b^4r^{-6}\). Many other non-axis pairs also contribute one-spin fields.</p>
+<p>If these fields were left alone, the final normalized Hamiltonian would not match the intended Barahona Hamiltonian. We therefore need a way to prescribe the one-spin coefficient at every selector cell.</p>
+<p>The idea of Section 6 is local and elegant: change the length of the \(+\) diagonal by a microscopic amount. The internal Riesz energy of that diagonal is extremely sensitive because the diagonal itself has length \(O(b)\). A tiny change \(\eta\) therefore creates a controllable local energy bias much larger than the geometric disturbance it causes to far-away interactions.</p>
+
+<h1 data-num="11">How changing one diagonal creates a local field</h1>
+<p class="opening">Keep the \(-\) diagonal at radius \(b\), but change the \(+\) diagonal from radius \(b\) to \(b+\eta\):</p>
+<div class="eq">\[c\pm b(1,1)\quad\longrightarrow\quad c\pm(b+\eta)(1,1).\]</div>
+<p>The internal energy of the \(+\) state becomes \(E_+(\eta)=\dfrac1{8(b+\eta)^2}\), whereas the \(-\) state still has \(E_-=\dfrac1{8b^2}\). A one-spin energy \(A+B\sigma\) has state difference \(E_+-E_-=2B\). Hence</p>
+<div class="eq">\[B(\eta)=\frac1{16}\left[(b+\eta)^{-2}-b^{-2}\right].\tag{7}\]</div>
+<p>At \(\eta=0\), \(B(0)=0\). Its derivative is</p>
+<div class="eq">\[\beta=B'(0)=-\frac18b^{-3}.\tag{8}\]</div>
+<p>Thus for very small \(\eta\), \(B(\eta)\approx\beta\eta\).</p>
+
+<p><b class="runin">The key scale insight.</b> The slope has size \(b^{-3}\), which is enormous when \(b\) is tiny. Therefore a perturbation of size only about \(b^5\) creates a field of size about</p>
+<div class="eq">\[b^{-3}\cdot b^5=b^2,\]</div>
+<p>exactly the natural scale of the unwanted geometric fields from Section 5. This is why the compensation is possible without visibly changing the geometry.</p>
+
+<h2>A simple numerical illustration</h2>
+<p>Take \(b=0.01\) and \(\eta=10^{-6}\). Then \(\beta\eta=-0.125\). The exact value from (7) is approximately</p>
+<div class="eq">\[B(\eta)=-0.1249813.\]</div>
+<p>So even at the relatively large ratio \(\eta/b=10^{-4}\), the linear approximation is already close. In the theorem the ratio is vastly smaller.</p>
+
+<h1 data-num="12">The field bookkeeping at one selector cell</h1>
+<p class="opening">Fix selector cell \(i\). Before any perturbation, every other selector contributes some one-spin coefficient to it. Add all of them and call the result \(G_i\). This is the <i>unwanted geometric field</i> already present at cell \(i\).</p>
+<p>The reduction wants a prescribed target field \(g_i\):</p>
+<div class="eq">\[g_i=\begin{cases}\lambda,&amp;\text{if \(i\) is the root cell of an original graph vertex},\\ 0,&amp;\text{if \(i\) is merely a wire or routing cell}.\end{cases}\]</div>
+<p>To first order, perturbing cell \(i\) by \(\eta_i\) changes its local field by \(\beta\eta_i\). Therefore the obvious choice is</p>
+<div class="eq">\[\eta_i^*=\frac{g_i-G_i}{\beta}.\tag{9}\]</div>
+<p>Indeed, \(G_i+\beta\eta_i^*=g_i\). So the linearized field is exactly right.</p>
+<p><b class="runin">Why &ldquo;first-order compensation&rdquo; rather than exact compensation?</b> Changing a diagonal also slightly changes its interactions with all other cells, and \(B(\eta)\) is not perfectly linear. Thus (9) does not solve the fully nonlinear global system exactly. The proof does not need exact nonlinear cancellation. It proves that all nonlinear and cross-interaction errors together are below \(\lambda/100\), which is more than sufficient for the later energy gap.</p>
+
+<h1 data-num="13">Why the perturbations are so small</h1>
+<p class="opening">Section 5 gives the uniform field bound \(|h_R^{(i)}|\le17b^2r^{-4}\). All selector centers are at least unit distance apart, so summing crudely over at most \(M\) other cells gives</p>
+<div class="eq">\[|G_i|\le17Mb^2.\tag{10}\]</div>
+<p>The target field satisfies, later in the construction, \(19b^4&lt;\lambda&lt;37b^4\). Using \(|\beta|^{-1}=8b^3\) in (9),</p>
+<div class="eq">\[\begin{aligned}|\eta_i^*|&amp;\le8b^3\bigl(|G_i|+|g_i|\bigr)\\ &amp;\le8b^3(17Mb^2+37b^4)\\ &amp;&lt;150Mb^5.\end{aligned}\]</div>
+<p>This is the first conclusion of the field-compensation lemma.</p>
+<p>The global construction chooses \(b\le\dfrac1{10^8M^3}\). Therefore</p>
+<div class="eq">\[\frac{|\eta_i|}{b}&lt;150M b^4,\]</div>
+<p>which is enormously smaller than \(10^{-6}\). So the perturbation is far too small to endanger the selector-forcing lemma.</p>
+
+<h1 data-num="14">Controlling the nonlinear internal error</h1>
+<p class="opening">The exact local bias is \(B(\eta)\), while the compensation formula uses its linear approximation \(\beta\eta\). Taylor&rsquo;s theorem gives</p>
+<div class="eq">\[B(\eta)=B(0)+B'(0)\eta+\tfrac12B''(\xi)\eta^2\]</div>
+<p>for some \(\xi\) between \(0\) and \(\eta\). Here \(B''(\eta)=\tfrac38(b+\eta)^{-4}\). For \(|\eta|\le b/100\), this is safely bounded by a constant times \(b^{-4}\). The manuscript uses the convenient conservative inequality</p>
+<div class="eq">\[|B(\eta)-\beta\eta|\le b^{-4}\eta^2.\tag{11}\]</div>
+<p>Substituting \(|\eta_i|&lt;150Mb^5\) and summing over \(M\) cells gives</p>
+<div class="eq">\[\sum_i|B(\eta_i)-\beta\eta_i|\le M b^{-4}(150Mb^5)^2=22500M^3b^6.\]</div>
+<p>This is much smaller than \(\lambda\asymp b^4\) under the chosen \(b\).</p>
+<p><b class="runin">The scaling to remember.</b> The desired Ising scale is \(b^4\). The nonlinear internal residual is only \(M^3b^6\). Relative to the desired scale, it has two extra powers of the tiny parameter \(b\).</p>
+
+<h1 data-num="15">Controlling changes in interactions with other cells</h1>
+<p class="opening">Moving a selector point by a distance of order \(|\eta|\) changes its Riesz interaction with a remote point. For \(f(x)=\lVert x\rVert^{-2}\), one has</p>
+<div class="eq">\[\lVert\nabla f(x)\rVert=2\lVert x\rVert^{-3}.\]</div>
+<p>All inter-cell point distances remain at least \(0.99\), so \(\lVert\nabla f\rVert\) is bounded by a small absolute constant. After accounting for four point pairs and the Fourier combinations, the manuscript uses the deliberately loose bound</p>
+<div class="eq">\[|\Delta J_{ij}|\le100(|\eta_i|+|\eta_j|),\tag{12}\]</div>
+<p>and the same type of estimate for the pair-field coefficients. Summing over all pairs,</p>
+<div class="eq">\[100\sum_{i&lt;j}(|\eta_i|+|\eta_j|)&lt;15000M^3b^5.\]</div>
+<p>Since \(\lambda&gt;19b^4\) and \(b\le(10^8M^3)^{-1}\), the ratio of this error to \(\lambda\) is far below \(1/100\). This establishes the key separation:</p>
+<div class="eq">\[\boxed{\text{field correction is large enough to cancel }G_i}\]</div>
+<p>while</p>
+<div class="eq">\[\boxed{\text{the geometric side effects of the correction are negligible}.}\]</div>
+
+<h1 data-num="16">Why rationality is especially clean at \(s=2\)</h1>
+<p class="opening">For rational coordinates in the plane,</p>
+<div class="eq">\[\lVert p-q\rVert^2=(p_x-q_x)^2+(p_y-q_y)^2\in\mathbb{Q}.\]</div>
+<p>Therefore \(\lVert p-q\rVert^{-2}\in\mathbb{Q}\). Every finite selector interaction, every Fourier coefficient, and every total unperturbed field \(G_i\) is rational. The objective coefficient \(\lambda\) is also rational, and</p>
+<div class="eq">\[\beta=-\frac18b^{-3}\]</div>
+<p>is rational whenever \(b\) is rational. Hence</p>
+<div class="eq">\[\eta_i^*=\frac{g_i-G_i}{\beta}\]</div>
+<p>is rational exactly.</p>
+<p>This is a major simplification compared with odd exponents such as \(s=3\), where square roots appear in exact pair energies and one must discuss approximation precision.</p>
+
+<h1 data-num="17">Section 6 distilled into one lemma</h1>
+<div class="lemma"><div class="lemma-head">Lemma 2 &nbsp;<span class="lemma-name">What Section 6 proves, in words</span></div>
+<p>There is a polynomial-time rational perturbation of each selector cell that gives every root cell the desired Ising field and every dummy routing cell zero target field, up to a total residual smaller than \(\lambda/100\). The perturbations are so small that selector forcing remains valid, and the total change in all pairwise spin couplings is also smaller than \(\lambda/100\).</p></div>
+
+<p>The four formal outputs correspond directly to four proof obligations:</p>
+<ol>
+  <li>\(|\eta_i|&lt;150Mb^5\): the correction has the predicted scale;</li>
+  <li>\(|\eta_i|&lt;10^{-6}b\): the selector geometry is not damaged;</li>
+  <li>total residual field \(&lt;\lambda/100\): the intended Ising field is realized accurately;</li>
+  <li>total coupling perturbation \(&lt;\lambda/100\): correcting the field does not destroy the edge/wire couplings from Section 5.</li>
+</ol>
+
+<h1 data-num="18">How Sections 5 and 6 fit together in the full reduction</h1>
+<p class="opening">It helps to separate three scales.</p>
+<p><b class="runin">Binary-state scale.</b> Inside each tiny square, the selector-forcing energy is of order b&#8315;&#178;. This is overwhelmingly strong and forces exactly one diagonal state.</p>
+<p><b class="runin">Unwanted raw field scale.</b> A generic pair of selectors can create a one-spin field of order \(b^2r^{-4}\). Section 6 cancels these fields almost completely by perturbations of order \(b^5\).</p>
+<p><b class="runin">Logical Ising coupling scale.</b> The spin&ndash;spin interaction appears at order \(b^4r^{-6}\). Axis pairs use its negative sign for consistency; 45&#176; pairs use its positive sign for source edges. The final target field \(\lambda\) is chosen on this same \(b^4\) logical scale.</p>
+
+<figure class="figure">
+<svg viewBox="0 0 520 210" role="img" aria-label="The three energy scales">
+  <line x1="70" y1="30" x2="70" y2="185" stroke="var(--figline)" stroke-width="1.4"/>
+  <polygon points="70,22 66,32 74,32" fill="var(--figline)"/>
+  <g>
+    <rect x="88" y="30" width="300" height="30" rx="3" fill="var(--scale-a)"/>
+    <text x="100" y="50" class="figlabel-sm">forcing energy &#183; b<tspan dy="-5" font-size="9.5">&#8722;2</tspan><tspan dy="5"> &#8212; makes the cell a bit</tspan></text>
+  </g>
+  <g>
+    <rect x="88" y="80" width="230" height="30" rx="3" fill="var(--scale-b)"/>
+    <text x="100" y="100" class="figlabel-sm">raw one-spin field &#183; b<tspan dy="-5" font-size="9.5">2</tspan><tspan dy="5">r</tspan><tspan dy="-5" font-size="9.5">&#8722;4</tspan><tspan dy="5"> &#8212; unwanted</tspan></text>
+  </g>
+  <g>
+    <rect x="88" y="130" width="160" height="30" rx="3" fill="var(--scale-c)"/>
+    <text x="100" y="150" class="figlabel-sm">logical coupling &#183; b<tspan dy="-5" font-size="9.5">4</tspan><tspan dy="5">r</tspan><tspan dy="-5" font-size="9.5">&#8722;6</tspan><tspan dy="5"> &#8212; the Ising model</tspan></text>
+  </g>
+  <text x="52" y="46" text-anchor="end" class="figtick">huge</text>
+  <text x="52" y="150" text-anchor="end" class="figtick">tiny</text>
+  <path d="M 330 95 C 380 95 380 145 260 145" fill="none" stroke="var(--fig-accent2)" stroke-width="1.8" stroke-dasharray="5 4"/>
+  <text x="400" y="128" text-anchor="middle" class="figlabel-sm">&#167;6 removes</text>
+  <text x="400" y="146" text-anchor="middle" class="figlabel-sm">this layer</text>
+</svg>
+<figcaption><b>Figure 4.</b> Three separated scales. The problem is that the middle layer is <i>larger</i> than the logical layer beneath it.</figcaption>
+</figure>
+
+<p>The apparent paradox is that the raw one-spin fields are larger than the desired \(b^4\) logical couplings. Section 6 resolves exactly that problem. The large \(b^2\) fields are canceled using tiny local changes whose own unwanted side effects are below the \(b^4\) scale.</p>
+
+<h1 data-num="19">A proof-reading checklist for Sections 5 and 6</h1>
+<p class="opening">When reading the original manuscript, the following questions are enough to keep the logic straight.</p>
+<ol class="checklist">
+  <li><b>What is being decomposed?</b> The four exact energies \(F_{++},F_{+-},F_{-+},F_{--}\) of two valid selector states.</li>
+  <li><b>What does \(J_R\) mean?</b> The agreement/disagreement coupling after removing constants and one-spin biases.</li>
+  <li><b>Why does angle matter?</b> Because the diagonal directions \((1,1)\) and \((1,-1)\) project differently onto the center vector \(R\).</li>
+  <li><b>Why fourth order for \(J\)?</b> Lower-order spin&ndash;spin contributions cancel by symmetry; the first surviving pair-coupling term is \(b^4r^{-6}\).</li>
+  <li><b>Why is the axis field exactly zero?</b> Reflection symmetry exchanges the two diagonal states without changing distances.</li>
+  <li><b>Why does Section 6 perturb only one diagonal?</b> That directly creates a tunable energy difference between the two spin states.</li>
+  <li><b>Why can a tiny \(\eta\) cancel a much larger-looking field?</b> Because the derivative of the short internal energy is of order \(b^{-3}\).</li>
+  <li><b>Why is first-order cancellation sufficient?</b> The quadratic and remote side effects have extra powers of \(b\) and are bounded below \(\lambda/100\).</li>
+  <li><b>Why are the perturbations rational?</b> At \(s=2\), inverse squared distances of rational points are rational.</li>
+</ol>
+
+<h1 data-num="20">Short exercises with solutions</h1>
+
+<div class="exercise"><div class="ex-head">Exercise 1 &mdash; recover a coupling from four energies</div>
+<p>Suppose \(F_{++}=7,\ F_{+-}=9,\ F_{-+}=9,\ F_{--}=7\). Find \(h_1,h_2,J\).</p>
+<div class="solution"><p><b class="runin">Solution.</b> By symmetry \(h_1=h_2=0\). Moreover</p>
+<div class="eq">\[J=\tfrac14(7-9-9+7)=-1.\]</div>
+<p>Thus the interaction is ferromagnetic.</p></div></div>
+
+<div class="exercise"><div class="ex-head">Exercise 2 &mdash; determine the two special angular signs</div>
+<p>Use the leading coefficient \(384\sin^2(2\theta)-160\). Evaluate it at \(\theta=0\) and \(\theta=45^\circ\).</p>
+<div class="solution"><p><b class="runin">Solution.</b> At \(0^\circ\), the value is \(-160\). At 45&#176;, \(\sin(90^\circ)=1\), so the value is \(384-160=224\).</p></div></div>
+
+<div class="exercise"><div class="ex-head">Exercise 3 &mdash; estimate the perturbation scale</div>
+<p>If the unwanted field is of size \(b^2\) and \(|\beta|\) is of size \(b^{-3}\), what size \(\eta\) is needed?</p>
+<div class="solution"><p><b class="runin">Solution.</b> From \(|\beta\eta|\sim b^2\),</p>
+<div class="eq">\[|\eta|\sim b^2/b^{-3}=b^5.\]</div>
+<p>This single scaling relation explains the basic field-compensation mechanism.</p></div></div>
+
+<h1 data-num="A" data-appendix="1">Bonus: the lattice-tail sums used later in the paper</h1>
+<p class="opening">The main body of this companion concerns Sections 5 and 6. Later, when proving that long consistency trees can be collapsed to one spin, the manuscript uses another kind of tail estimate: infinite sums over increasingly distant selectors. Since this is often conceptually grouped with the remainder estimates above, we record the three basic examples.</p>
+
+<h2>A straight tail</h2>
+<p>A spin&ndash;spin interaction at distance \(r\) is bounded by a constant times \(r^{-6}\). Along a one-dimensional wire, the number of pairs crossing a cut at separation \(k\) grows like \(k\). Therefore the relevant tail behaves like</p>
+<div class="eq">\[\sum_{k=2}^\infty k\,k^{-6}=\sum_{k=2}^\infty k^{-5}.\]</div>
+<p>The manuscript uses \(\sum_{k=2}^\infty k^{-5}&lt;0.037\). One elementary proof is to sum the first few terms and compare the rest with an integral:</p>
+<div class="eq">\[\sum_{k=2}^\infty k^{-5}\le\sum_{k=2}^{5}k^{-5}+\int_5^\infty x^{-5}\,dx&lt;0.037.\]</div>
+<p>The important lesson is that the bound does <i>not</i> grow with total wire length. The infinite tail itself is finite.</p>
+
+<h2>A right-angle sector</h2>
+<p>At a bend one encounters a two-dimensional sum</p>
+<div class="eq">\[Q_6=\sum_{i,j\ge1}(i^2+j^2)^{-3}.\]</div>
+<p>Use the elementary inequality \(i^2+j^2\ge2ij\). Then \((i^2+j^2)^{-3}\le\dfrac1{8i^3j^3}\). Therefore</p>
+<div class="eq">\[Q_6\le\frac18\left(\sum_{i\ge1}i^{-3}\right)^2=\frac18\zeta(3)^2&lt;0.181.\]</div>
+<p>So even the entire infinite right-angle sector has a small finite total weight.</p>
+
+<h2>Opposite collinear rays</h2>
+<p>For two rays pointing away from a common junction, the distance is proportional to \(i+j\). Hence</p>
+<div class="eq">\[P_6=\sum_{i,j\ge1}(i+j)^{-6}.\]</div>
+<p>Group terms by \(k=i+j\). There are \(k-1\) positive pairs with \(i+j=k\), so</p>
+<div class="eq">\[P_6=\sum_{k=2}^\infty(k-1)k^{-6}=\zeta(5)-\zeta(6)&lt;0.020.\]</div>
+<p>Again the total is finite and independent of how long the actual finite branches are.</p>
+<p><b class="runin">Why these sums matter.</b> They formalize the statement that a long tree does not accumulate an arbitrarily large local tail across one cut. The decay \(r^{-6}\) is strong enough that the infinite worst-case continuation already has bounded total influence. This is the analytical reason the wire length can grow polynomially without destroying the local consistency margin.</p>
+
+<h1 data-num="B" data-appendix="1">One-page summary</h1>
+<p class="opening">Sections 5 and 6 can be remembered as the following chain.</p>
+<ol class="summary">
+  <li>A selector is already a binary spin because Section 4 forces one of two diagonals.</li>
+  <li>Two selectors have four exact interaction energies. Any four-entry spin table has the exact basis expansion \(A+h_1\sigma+h_2\tau+J\sigma\tau\).</li>
+  <li>Expanding inverse squared distance in the small ratio \(t=b/r\) shows that \(J\) first appears at scale \(b^4r^{-6}\).</li>
+  <li>The angular coefficient is \(384\sin^2(2\theta)-160\). It is negative on an axis and positive at 45&#176;.</li>
+  <li>Axis pairs are therefore field-free ferromagnetic wires; 45&#176; pairs are antiferromagnetic source interactions.</li>
+  <li>Generic non-axis geometry also creates one-spin fields, typically on the larger scale \(b^2r^{-4}\).</li>
+  <li>Changing one diagonal radius by \(\eta\) creates an internal field with derivative \(-\tfrac18b^{-3}\). Therefore an \(O(b^5)\) perturbation can cancel an \(O(b^2)\) unwanted field.</li>
+  <li>The nonlinear error is quadratic in \(\eta\) and the changes to remote interactions are Lipschitz in \(\eta\). Under \(b\le(10^8M^3)^{-1}\), both are much smaller than the logical scale \(\lambda\asymp b^4\).</li>
+  <li>Because \(s=2\), all exact energies and all compensation parameters are rational for rational coordinates.</li>
+</ol>
+<div class="closing">That is the complete conceptual content of the two sections: <i>extract the orientation-dependent Ising interaction, then remove the unwanted local fields without disturbing it.</i></div>
+<div class="colophon">&#10087;</div>
