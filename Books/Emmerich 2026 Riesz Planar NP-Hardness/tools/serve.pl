@@ -7,6 +7,7 @@ my $ROOT = dirname(File::Spec->rel2abs($0));
 my $PORT = $ENV{PORT} || 8731;
 
 $| = 1;
+$SIG{PIPE} = 'IGNORE';   # a client that disconnects mid-transfer must not kill the server
 my $srv = IO::Socket::INET->new(
   LocalAddr => '127.0.0.1', LocalPort => $PORT,
   Proto => 'tcp', Listen => 16, ReuseAddr => 1
