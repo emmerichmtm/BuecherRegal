@@ -1,0 +1,651 @@
+/* ============================================================
+   The Riesz Companion — a page-turning reading book
+   ============================================================ */
+
+:root{
+  --PW: 620px;
+  --PH: 830px;
+
+  --desk-1:#2b241d;
+  --desk-2:#171310;
+  --board:#4a2f28;
+  --board-2:#341f1a;
+
+  --paper:#faf5ea;
+  --paper-2:#f3ecdd;
+  --ink:#2c2721;
+  --ink-soft:#6a6055;
+  --ink-faint:#9d9284;
+  --rule:#d8cdb8;
+  --rule-soft:#e6ddcb;
+
+  --accent:#8f3222;
+  --accent-2:#1f6360;
+  --gold:#a98436;
+
+  --figline:#3a332b;
+  --figline-soft:#b6ab97;
+  --fig-accent:#8f3222;
+  --fig-accent2:#1f6360;
+  --plot-bg:#f2ebda;
+  --plot-pos:#e6ddc4;
+  --scale-a:#e2d3bd;
+  --scale-b:#e9cfc4;
+  --scale-c:#cfdedb;
+
+  --note-bg:#fdf0b8;
+  --note-bg-2:#f7e79a;
+  --note-ink:#3a3324;
+
+  --ui-bg:rgba(28,23,19,.86);
+  --ui-line:rgba(255,255,255,.13);
+  --ui-text:#e8ded0;
+  --ui-dim:#a6998a;
+  --ui-hi:#f0c98a;
+
+  --grain:.055;
+  --hl-alpha:0.42;
+}
+
+html.night{
+  --desk-1:#14161a;
+  --desk-2:#0a0b0d;
+  --board:#232830;
+  --board-2:#161a20;
+
+  --paper:#1e1d1b;
+  --paper-2:#191817;
+  --ink:#ddd4c6;
+  --ink-soft:#a79c8d;
+  --ink-faint:#7b7264;
+  --rule:#3a352e;
+  --rule-soft:#2c2823;
+
+  --accent:#e0846a;
+  --accent-2:#63c1bb;
+  --gold:#d8b268;
+
+  --figline:#c9c0b1;
+  --figline-soft:#5d564b;
+  --fig-accent:#e0846a;
+  --fig-accent2:#63c1bb;
+  --plot-bg:#232120;
+  --plot-pos:#2e2b26;
+  --scale-a:#3b352c;
+  --scale-b:#43332e;
+  --scale-c:#2b3a38;
+
+  --note-bg:#4a4322;
+  --note-bg-2:#3d3719;
+  --note-ink:#f0e7c8;
+
+  --grain:.03;
+  --hl-alpha:0.30;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  background:
+    radial-gradient(120% 90% at 50% 0%, var(--desk-1) 0%, var(--desk-2) 78%);
+  background-attachment:fixed;
+  color:var(--ui-text);
+  font-family:"KaTeX_Main","Iowan Old Style",Georgia,"Times New Roman",serif;
+  -webkit-font-smoothing:antialiased;
+  overflow:hidden;
+}
+
+/* ---------------- app frame ---------------- */
+#app{position:fixed;inset:0;display:flex;flex-direction:column}
+
+/* ---------------- toolbar ---------------- */
+#toolbar{
+  flex:0 0 auto;
+  display:flex;align-items:center;gap:6px;
+  padding:8px 14px;
+  background:linear-gradient(180deg,rgba(0,0,0,.30),rgba(0,0,0,0));
+  z-index:60;
+  user-select:none;
+  flex-wrap:wrap;
+}
+.tb-title{
+  font-size:13px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--ui-dim);margin-right:6px;white-space:nowrap;
+}
+.tb-title b{color:var(--ui-text);font-weight:400}
+.spacer{flex:1 1 auto}
+
+.tbtn{
+  appearance:none;border:1px solid var(--ui-line);
+  background:rgba(255,255,255,.045);
+  color:var(--ui-text);
+  border-radius:9px;
+  padding:0 11px;height:34px;
+  font:inherit;font-size:13.5px;line-height:1;
+  display:inline-flex;align-items:center;gap:7px;
+  cursor:pointer;transition:background .16s,border-color .16s,color .16s,transform .1s;
+  white-space:nowrap;
+}
+.tbtn:hover{background:rgba(255,255,255,.11);border-color:rgba(255,255,255,.26)}
+.tbtn:active{transform:translateY(1px)}
+.tbtn.on{background:var(--ui-hi);border-color:var(--ui-hi);color:#241a10;font-weight:700}
+.tbtn.icon{padding:0;width:34px;justify-content:center}
+.tbtn svg{width:17px;height:17px;display:block}
+.tbtn .k{font-size:10px;opacity:.5;letter-spacing:.06em}
+.tbtn.on .k{opacity:.6}
+.tb-group{display:flex;gap:5px;align-items:center;padding:3px;border-radius:12px;background:rgba(0,0,0,.22);border:1px solid rgba(255,255,255,.06)}
+.tb-sep{width:1px;height:24px;background:var(--ui-line);margin:0 4px}
+
+/* colour swatches */
+#swatches{display:flex;gap:6px;align-items:center;padding-left:2px}
+.sw{
+  width:24px;height:24px;border-radius:50%;cursor:pointer;
+  border:2px solid rgba(255,255,255,.25);
+  transition:transform .13s, box-shadow .13s;
+}
+.sw:hover{transform:scale(1.12)}
+.sw.on{box-shadow:0 0 0 2px rgba(0,0,0,.5),0 0 0 4px var(--ui-hi);transform:scale(1.12)}
+#swatches.hidden{display:none}
+
+/* ---------------- stage ---------------- */
+#stage{
+  flex:1 1 auto;position:relative;overflow:auto;
+  display:flex;align-items:flex-start;justify-content:center;
+  padding:6px 0 4px;
+  scrollbar-width:thin;
+}
+#scaler{position:relative;transform-origin:top left;flex:0 0 auto}
+#fitbox{position:relative;flex:0 0 auto}
+
+/* ---------------- the book ---------------- */
+#book{
+  position:relative;
+  width:calc(var(--PW) * 2);
+  height:var(--PH);
+  perspective:2600px;
+  perspective-origin:50% 44%;
+}
+/* hard covers behind the leaves */
+.board{
+  position:absolute;top:-11px;height:calc(var(--PH) + 22px);width:calc(var(--PW) + 11px);
+  background:linear-gradient(150deg,var(--board),var(--board-2));
+  border-radius:4px 10px 10px 4px;
+  box-shadow:0 26px 60px rgba(0,0,0,.55), 0 3px 10px rgba(0,0,0,.4);
+}
+.board.left{left:-11px;border-radius:10px 4px 4px 10px}
+.board.right{right:-11px}
+.board::after{
+  content:"";position:absolute;inset:9px;border:1px solid rgba(255,255,255,.10);border-radius:3px;
+}
+/* stacked-paper edge */
+.edge{
+  position:absolute;top:6px;height:calc(var(--PH) - 12px);width:9px;
+  background:repeating-linear-gradient(90deg,#efe6d3 0 1px,#d9cdb4 1px 2px);
+  opacity:.85;
+}
+.edge.r{right:-9px;border-radius:0 3px 3px 0;box-shadow:2px 0 6px rgba(0,0,0,.35)}
+.edge.l{left:-9px;border-radius:3px 0 0 3px;box-shadow:-2px 0 6px rgba(0,0,0,.35)}
+html.night .edge{background:repeating-linear-gradient(90deg,#33302c 0 1px,#22201d 1px 2px)}
+
+.leaf{
+  position:absolute;top:0;left:var(--PW);
+  width:var(--PW);height:var(--PH);
+  transform-style:preserve-3d;
+  transform-origin:left center;
+  transition:transform .78s cubic-bezier(.33,.03,.2,1);
+  will-change:transform;
+}
+.leaf.flipped{transform:rotateY(-180deg)}
+.leaf.notrans{transition:none}
+
+.face{
+  position:absolute;inset:0;
+  backface-visibility:hidden;
+  -webkit-backface-visibility:hidden;
+  overflow:hidden;
+  background:var(--paper);
+  box-shadow:0 1px 3px rgba(0,0,0,.35);
+}
+.face.front{transform:rotateY(0deg);border-radius:2px 5px 5px 2px}
+.face.back{transform:rotateY(180deg);border-radius:5px 2px 2px 5px}
+
+/* paper surface */
+.face::before{
+  content:"";position:absolute;inset:0;pointer-events:none;z-index:5;
+  background-image:url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity:var(--grain);
+  mix-blend-mode:multiply;
+}
+html.night .face::before{mix-blend-mode:screen}
+/* gutter shading + outer edge warmth */
+.face::after{
+  content:"";position:absolute;inset:0;pointer-events:none;z-index:6;
+}
+.face.front::after{
+  background:
+    linear-gradient(90deg, rgba(60,40,20,.16) 0%, rgba(60,40,20,.05) 3.5%, rgba(0,0,0,0) 12%),
+    linear-gradient(270deg, rgba(90,70,40,.07) 0%, rgba(0,0,0,0) 6%);
+}
+.face.back::after{
+  background:
+    linear-gradient(270deg, rgba(60,40,20,.16) 0%, rgba(60,40,20,.05) 3.5%, rgba(0,0,0,0) 12%),
+    linear-gradient(90deg, rgba(90,70,40,.07) 0%, rgba(0,0,0,0) 6%);
+}
+html.night .face.front::after{background:linear-gradient(90deg,rgba(0,0,0,.55) 0%,rgba(0,0,0,.18) 4%,rgba(0,0,0,0) 13%)}
+html.night .face.back::after{background:linear-gradient(270deg,rgba(0,0,0,.55) 0%,rgba(0,0,0,.18) 4%,rgba(0,0,0,0) 13%)}
+
+/* the travelling shadow during a flip */
+.flipshade{
+  position:absolute;inset:0;z-index:7;pointer-events:none;opacity:0;
+  background:linear-gradient(90deg,rgba(0,0,0,.42),rgba(0,0,0,.05) 55%,rgba(0,0,0,0));
+}
+.leaf.turning .face.front .flipshade{animation:shFront .78s cubic-bezier(.33,.03,.2,1)}
+.leaf.turning .face.back  .flipshade{animation:shBack .78s cubic-bezier(.33,.03,.2,1)}
+@keyframes shFront{0%{opacity:0}45%{opacity:.55}100%{opacity:0}}
+@keyframes shBack{0%{opacity:.55}55%{opacity:.35}100%{opacity:0}}
+
+/* corner-turn hot zone */
+.turnzone{
+  position:absolute;top:0;bottom:0;width:66px;z-index:9;cursor:pointer;
+}
+.turnzone.next{right:0}
+.turnzone.prev{left:0}
+.turnzone::after{
+  content:"";position:absolute;bottom:0;width:0;height:0;opacity:0;
+  transition:opacity .22s, width .22s, height .22s;
+}
+.turnzone.next::after{right:0;border-style:solid;border-width:0 0 66px 66px;
+  border-color:transparent transparent rgba(0,0,0,.13) transparent;}
+.turnzone.prev::after{left:0;border-style:solid;border-width:0 66px 66px 0;
+  border-color:transparent transparent transparent rgba(0,0,0,.13);}
+.turnzone:hover::after{opacity:1}
+body.tool-active .turnzone{display:none}
+
+/* ---------------- page interior ---------------- */
+.page-inner{position:absolute;inset:0;z-index:2}
+.hl-layer,.ink-layer{position:absolute;inset:0;pointer-events:none}
+.hl-layer{z-index:1}
+.ink-layer{z-index:4}
+.notes-layer{position:absolute;inset:0;z-index:8;pointer-events:none}
+.note{pointer-events:auto}
+.page-content{
+  position:absolute;
+  top:58px;bottom:66px;
+  width:calc(var(--PW) - 128px);
+  z-index:3;
+  color:var(--ink);
+  font-size:16px;line-height:1.6;
+  text-align:justify;
+  hyphens:auto;
+  -webkit-hyphens:auto;
+  display:flow-root;
+  overflow:hidden;
+}
+.face.front .page-content{left:70px}   /* recto: gutter on the left */
+.face.back  .page-content{left:58px}   /* verso: gutter on the right */
+
+.running{
+  position:absolute;top:26px;z-index:3;
+  font-size:10.5px;letter-spacing:.19em;text-transform:uppercase;
+  color:var(--ink-faint);
+  width:calc(var(--PW) - 128px);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.face.front .running{left:70px;text-align:right}
+.face.back  .running{left:58px;text-align:left}
+.folio{
+  position:absolute;bottom:32px;z-index:3;
+  font-size:12.5px;color:var(--ink-soft);
+  width:calc(var(--PW) - 128px);text-align:center;
+}
+.face.front .folio{left:70px}
+.face.back  .folio{left:58px}
+.folio i{font-style:normal;color:var(--ink-faint);margin:0 .5em;font-size:10px}
+
+/* ---------------- typography ---------------- */
+.page-content > *:first-child{margin-top:0}
+.page-content p{margin:0 0 .62em}
+.page-content p + p{text-indent:1.25em}
+.page-content p.opening,.page-content p.abstract{text-indent:0}
+.page-content p.opening + p{text-indent:1.25em}
+.page-content i,.page-content em{font-style:italic}
+.page-content b,.page-content strong{font-weight:700}
+
+h1.chapter{
+  margin:2.1em 0 .95em;padding:0 0 .45em;
+  border-bottom:1px solid var(--rule);
+  font-size:20px;line-height:1.3;font-weight:700;
+  letter-spacing:-.005em;text-align:left;
+  text-indent:0;
+}
+h1.chapter .hnum{
+  color:var(--accent);font-weight:400;
+  margin-right:.6em;
+  font-variant-numeric:tabular-nums;
+}
+.page-content h2{
+  margin:1.5em 0 .5em;font-size:15.5px;font-weight:700;
+  text-align:left;text-indent:0;color:var(--ink);
+  letter-spacing:.01em;
+}
+.page-content h2::before{
+  content:"";display:inline-block;width:12px;height:1px;background:var(--accent);
+  vertical-align:middle;margin-right:.6em;opacity:.7;
+}
+b.runin{font-weight:700}
+
+.page-content ul,.page-content ol{margin:.2em 0 .7em;padding-left:1.5em;text-align:left}
+.page-content li{margin-bottom:.4em;text-indent:0}
+.page-content ol.checklist li,.page-content ol.summary li{margin-bottom:.62em}
+ul.howto{padding-left:1.25em}
+ul.howto li{margin-bottom:.55em}
+
+kbd{
+  font-family:inherit;font-size:.86em;
+  border:1px solid var(--rule);border-bottom-width:2px;border-radius:4px;
+  padding:.06em .4em;background:var(--paper-2);color:var(--ink-soft);
+}
+
+/* display maths */
+.eq{
+  margin:.72em 0 .78em;text-align:center;overflow-x:auto;overflow-y:hidden;
+  text-indent:0;
+}
+.eq .katex-display{margin:0}
+.katex{font-size:1.03em}
+.eq .katex{font-size:1.045em}
+
+/* figures */
+figure.figure{margin:1.05em 0 1.1em;text-align:center;text-indent:0}
+figure.figure svg{width:100%;height:auto;max-width:100%;display:block}
+figcaption{
+  margin-top:.55em;font-size:12.6px;line-height:1.45;
+  color:var(--ink-soft);text-align:left;
+}
+.figlabel{font-family:"KaTeX_Main",Georgia,serif;font-size:15px;fill:var(--figline)}
+.figlabel-sm{font-family:"KaTeX_Main",Georgia,serif;font-size:12px;fill:var(--figline)}
+.figtick{font-family:"KaTeX_Main",Georgia,serif;font-size:11px;fill:var(--ink-faint)}
+
+/* lemma & exercise boxes */
+.lemma,.exercise{
+  margin:.9em 0 1em;padding:.75em .95em .8em;
+  border:1px solid var(--rule);
+  border-left:3px solid var(--accent);
+  background:linear-gradient(180deg,rgba(143,50,34,.045),rgba(143,50,34,0));
+  border-radius:2px 6px 6px 2px;
+  text-indent:0;
+}
+.exercise{border-left-color:var(--accent-2);background:linear-gradient(180deg,rgba(31,99,96,.05),rgba(31,99,96,0))}
+.lemma-head,.ex-head{
+  font-weight:700;font-size:12px;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--accent);margin-bottom:.5em;
+}
+.ex-head{color:var(--accent-2)}
+.lemma-name{font-weight:400;letter-spacing:.06em;color:var(--ink-soft);text-transform:none;font-size:12.5px}
+.lemma p,.exercise p{margin:0 0 .5em}
+.lemma p:last-child,.exercise p:last-child{margin-bottom:0}
+.solution{margin-top:.55em;padding-top:.5em;border-top:1px dashed var(--rule)}
+.solution p:last-child{margin-bottom:0}
+
+.closing{
+  margin:1.4em 0 0;padding:.85em 1em;text-align:center;
+  border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);
+  font-size:15px;color:var(--ink);text-indent:0;
+}
+.colophon{margin-top:1.6em;text-align:center;color:var(--accent);font-size:17px;opacity:.6}
+
+/* ---------------- front matter ---------------- */
+.cover-page .page-content,.howto-page .page-content,.toc-page .page-content{text-align:left}
+.cover{
+  height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;padding:0 6px;
+}
+.cover-rule{width:100%;height:1px;background:var(--accent);opacity:.55}
+.cover-rule:first-child{margin-bottom:auto}
+.cover-rule:last-child{margin-top:auto}
+.cover-kicker{
+  font-size:11.5px;letter-spacing:.42em;text-transform:uppercase;color:var(--accent);
+  margin-top:64px;
+}
+.cover-title{
+  font-size:52px;line-height:1.05;font-weight:700;margin:.34em 0 .1em;color:var(--ink);
+  letter-spacing:-.015em;
+}
+.cover-sub{font-size:16.5px;line-height:1.5;color:var(--ink-soft);margin-top:1.1em;font-style:italic}
+.cover-orn{font-size:20px;color:var(--gold);margin:1.5em 0 1.3em}
+.cover-meta{font-size:13.5px;line-height:1.65;color:var(--ink-soft);margin-bottom:64px}
+.cover-dim{color:var(--ink-faint);font-size:12.6px}
+.cover-date{margin-top:1.5em;font-size:12px;letter-spacing:.24em;text-transform:uppercase;color:var(--ink-faint)}
+
+.fm-head{
+  font-size:12px;letter-spacing:.3em;text-transform:uppercase;color:var(--accent);
+  margin:0 0 1em;padding-bottom:.55em;border-bottom:1px solid var(--rule);font-weight:400;
+}
+.howto-page .fm-head:not(:first-child){margin-top:0}
+p.abstract{font-size:14.3px;line-height:1.62;color:var(--ink-soft)}
+.fm-divider{text-align:center;color:var(--gold);font-size:15px;margin:1.5em 0 1.5em;opacity:.7}
+
+.toc-body{columns:2;column-gap:26px;column-fill:balance;font-size:13px;line-height:1.4}
+.toc-row{
+  break-inside:avoid;display:flex;align-items:baseline;gap:5px;
+  margin-bottom:.5em;cursor:pointer;color:var(--ink);
+}
+.toc-row:hover .toc-t{color:var(--accent)}
+.toc-row.sub{padding-left:14px;font-size:12.2px;color:var(--ink-soft);margin-bottom:.38em}
+.toc-n{color:var(--accent);min-width:1.4em;font-size:11.5px;letter-spacing:.06em}
+.toc-row.sub .toc-n{min-width:0}
+.toc-t{flex:0 1 auto}
+.toc-dots{flex:1 1 auto;border-bottom:1px dotted var(--rule);transform:translateY(-3px);min-width:8px}
+.toc-p{color:var(--ink-faint);font-size:11.5px}
+
+/* ---------------- sticky notes ---------------- */
+.note{
+  position:absolute;width:172px;min-height:92px;
+  background:linear-gradient(160deg,var(--note-bg),var(--note-bg-2));
+  color:var(--note-ink);
+  box-shadow:0 6px 16px rgba(0,0,0,.28),0 1px 2px rgba(0,0,0,.2);
+  border-radius:2px;
+  font-size:12.5px;line-height:1.42;
+  display:flex;flex-direction:column;
+  transition:box-shadow .18s;
+}
+.note:hover{box-shadow:0 10px 24px rgba(0,0,0,.34),0 1px 2px rgba(0,0,0,.2)}
+.note-bar{
+  height:16px;flex:0 0 auto;cursor:grab;
+  background:rgba(0,0,0,.07);
+  display:flex;align-items:center;justify-content:flex-end;padding:0 3px;
+}
+.note-bar:active{cursor:grabbing}
+.note-del{
+  border:0;background:transparent;color:var(--note-ink);opacity:.45;
+  cursor:pointer;font:inherit;font-size:13px;line-height:1;padding:0 3px;
+}
+.note-del:hover{opacity:1;color:#a02b1e}
+.note-txt{
+  flex:1 1 auto;padding:6px 8px 8px;outline:none;overflow:auto;
+  text-align:left;text-indent:0;white-space:pre-wrap;word-break:break-word;
+}
+.note-txt:empty::before{content:"note…";color:rgba(0,0,0,.28)}
+html.night .note-txt:empty::before{color:rgba(255,255,255,.28)}
+
+/* ---------------- bottom bar ---------------- */
+#navbar{
+  flex:0 0 auto;display:flex;align-items:center;justify-content:center;gap:12px;
+  padding:6px 16px 10px;z-index:60;user-select:none;
+}
+#slider{
+  -webkit-appearance:none;appearance:none;width:min(420px,42vw);height:3px;border-radius:2px;
+  background:rgba(255,255,255,.18);outline:none;cursor:pointer;
+}
+#slider::-webkit-slider-thumb{
+  -webkit-appearance:none;width:14px;height:14px;border-radius:50%;
+  background:var(--ui-hi);border:0;cursor:grab;box-shadow:0 1px 4px rgba(0,0,0,.5);
+}
+#slider::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--ui-hi);border:0}
+#pageLabel{font-size:12.5px;color:var(--ui-dim);min-width:118px;text-align:center;letter-spacing:.06em}
+
+/* ---------------- overlays ---------------- */
+.overlay{
+  position:fixed;inset:0;z-index:200;display:none;
+  background:rgba(8,6,5,.62);backdrop-filter:blur(3px);
+}
+.overlay.open{display:flex;align-items:center;justify-content:center}
+.sheet{
+  background:#211b16;border:1px solid rgba(255,255,255,.12);
+  border-radius:14px;padding:22px 24px;max-width:min(720px,90vw);
+  max-height:82vh;overflow:auto;box-shadow:0 30px 80px rgba(0,0,0,.6);
+}
+.sheet h3{margin:0 0 14px;font-size:13px;letter-spacing:.24em;text-transform:uppercase;color:var(--ui-hi);font-weight:400}
+.sheet .toc-list{columns:2;column-gap:30px}
+.sheet .o-row{
+  break-inside:avoid;display:flex;gap:8px;align-items:baseline;margin-bottom:9px;
+  cursor:pointer;color:var(--ui-text);font-size:14px;
+}
+.sheet .o-row:hover{color:var(--ui-hi)}
+.sheet .o-row .n{color:var(--ui-hi);min-width:1.5em;font-size:12px;opacity:.8}
+.sheet .o-row .d{flex:1 1 auto;border-bottom:1px dotted rgba(255,255,255,.16);transform:translateY(-4px)}
+.sheet .o-row .p{color:var(--ui-dim);font-size:12px}
+.sheet-close{position:absolute;top:16px;right:20px}
+
+#toast{
+  position:fixed;left:50%;bottom:74px;transform:translateX(-50%) translateY(12px);
+  background:rgba(20,16,13,.94);border:1px solid rgba(255,255,255,.14);
+  color:var(--ui-text);padding:9px 16px;border-radius:9px;font-size:13px;
+  opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:300;
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+#loader{
+  position:fixed;inset:0;z-index:500;display:flex;align-items:center;justify-content:center;
+  flex-direction:column;gap:16px;background:var(--desk-2);
+  transition:opacity .5s;
+}
+#loader.gone{opacity:0;pointer-events:none}
+.ldr-title{font-size:13px;letter-spacing:.34em;text-transform:uppercase;color:var(--ui-dim)}
+.ldr-bar{width:190px;height:2px;background:rgba(255,255,255,.12);overflow:hidden;border-radius:2px}
+.ldr-bar span{display:block;height:100%;width:40%;background:var(--ui-hi);animation:ldr 1.15s ease-in-out infinite}
+@keyframes ldr{0%{transform:translateX(-110%)}100%{transform:translateX(320%)}}
+
+/* measuring hosts */
+#source,#pagesHost{
+  position:absolute;left:-99999px;top:0;visibility:hidden;
+  width:calc(var(--PW) - 128px);
+  font-size:16px;line-height:1.6;text-align:justify;
+}
+
+/* cursors */
+body.cur-hl  #book{cursor:crosshair}
+body.cur-pen #book{cursor:crosshair}
+body.cur-era #book{cursor:cell}
+body.cur-note #book{cursor:copy}
+body.tool-active .page-content{user-select:none}
+
+@media (max-width:560px){
+  .tb-title{display:none}
+  .tbtn .lbl{display:none}
+  .tbtn{padding:0 9px}
+}
+
+/* glossary on the notation page */
+dl.glossary{margin:0;font-size:13.4px;line-height:1.5}
+dl.glossary dt{
+  font-weight:400;color:var(--accent);margin-top:.72em;
+}
+dl.glossary dt:first-child{margin-top:0}
+dl.glossary dd{margin:.12em 0 0;color:var(--ink-soft);padding-left:1.1em;text-align:left}
+p.fm-foot{font-size:13px;line-height:1.55;color:var(--ink-soft);text-align:left;text-indent:0;margin:0}
+
+/* run-in headings begin flush left */
+.page-content p:has(> b.runin:first-child){text-indent:0}
+/* figure text needs a face that certainly has Greek */
+.figlabel,.figlabel-sm,.figtick{font-family:"KaTeX_Main","Times New Roman",Georgia,serif}
+.eq.eq-tight{margin:.45em 0}
+p.eq-and{text-align:center;text-indent:0;margin:.15em 0;color:var(--ink-soft);font-size:14px}
+
+/* a chapter that opens its own page sits at the top of the block */
+.page-content > h1.chapter:first-child{margin-top:0}
+/* one that flows on mid-page gets breathing room and a hairline above */
+.page-content > h1.chapter:not(:first-child){border-top:1px solid var(--rule-soft);padding-top:1.5em}
+
+/* trailing margin never counts against the text block */
+.page-content > *:last-child{margin-bottom:0}
+
+/* mechanically converted (dvisvgm) TikZ figures: theme via inversion */
+figure.figure.tikz-embed svg{max-width:100%;height:auto}
+html.night figure.figure.tikz-embed svg{filter:invert(.92) hue-rotate(180deg)}
+
+/* ===== print / annotated PDF ===== */
+#printRoot{display:none}
+@media print{
+  html,body{overflow:visible !important;background:#fff !important}
+  #app,#toast,#loader,.overlay{display:none !important}
+  #printRoot{display:block}
+  @page{size:620px 830px;margin:0}
+  .print-page{
+    position:relative;width:620px;height:830px;overflow:hidden;
+    page-break-after:always;break-after:page;
+    background:var(--paper);
+    -webkit-print-color-adjust:exact;print-color-adjust:exact;
+  }
+  .print-page .face{
+    position:absolute;inset:0;transform:none !important;
+    box-shadow:none;border-radius:0;backface-visibility:visible;
+  }
+  .print-page .face::before,.print-page .face::after{display:none}
+  .print-page .ann-img{position:absolute;inset:0;width:620px;height:830px}
+  .print-page .note{box-shadow:0 1px 3px rgba(0,0,0,.25)}
+  .print-page .note-bar{display:none}
+}
+
+/* ===== per-book styles: Chan hypervolume implementation paper ===== */
+/* theorem-box variant + proofs (shared idiom with the planar book) */
+.qed{float:right;color:var(--ink-soft)}
+
+/* algorithm box */
+.algo{
+  margin:.95em 0 1.05em;padding:.7em .95em .75em;
+  border:1px solid var(--rule);border-radius:2px;
+  background:linear-gradient(180deg,rgba(31,99,96,.05),rgba(31,99,96,0));
+  text-indent:0;
+}
+.algo-head{
+  font-weight:700;font-size:12px;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--accent-2);margin-bottom:.5em;
+  border-bottom:1px solid var(--rule-soft);padding-bottom:.4em;
+}
+.algo-name{font-weight:400;letter-spacing:.02em;color:var(--ink);text-transform:none;font-size:13.5px}
+.algo ol{margin:0;padding-left:2em;text-align:left}
+.algo li{margin-bottom:.3em;font-size:14.6px}
+
+/* code listing */
+pre.codeblock{
+  margin:.9em 0;padding:.8em 1em;
+  border:1px solid var(--rule);border-radius:3px;
+  background:var(--paper-2);
+  font-family:Consolas,Menlo,monospace;font-size:12.3px;line-height:1.5;
+  color:var(--ink);overflow-x:auto;text-align:left;text-indent:0;
+  white-space:pre;
+}
+.page-content code{font-family:Consolas,Menlo,monospace;font-size:.86em;color:var(--ink-soft)}
+
+/* booktabs-style data tables */
+.tablewrap{overflow-x:auto;margin:.5em 0 .9em;text-indent:0}
+p.tabcap{font-size:12.6px;line-height:1.45;color:var(--ink-soft);text-align:left;text-indent:0;margin:.9em 0 .35em}
+table.data{margin:0 auto;border-collapse:collapse;font-size:13.2px;line-height:1.45}
+table.data th{font-weight:700;text-align:left;padding:.3em .7em;
+  border-top:1.5px solid var(--ink);border-bottom:.8px solid var(--ink)}
+table.data thead tr+tr th{border-top:none}
+table.data td{padding:.24em .7em;text-align:left;font-variant-numeric:tabular-nums}
+table.data tbody tr:last-child td{border-bottom:1.5px solid var(--ink)}
+table.data.data-tight{font-size:12.4px}
+table.data.data-tight th,table.data.data-tight td{padding:.22em .45em}
+
+/* references */
+.refs p{font-size:13.2px;line-height:1.5;text-indent:0;padding-left:1.6em;text-align:left;position:relative}
+/* references flow as individual paragraphs so they can break across pages */
+p.ref{font-size:13.2px;line-height:1.5;text-indent:0;padding-left:1.5em;text-align:left;margin:0 0 .45em}
+/* a heading with no number: no gap where the numeral would be */
+h1.chapter .hnum:empty{margin-right:0}
+/* the usage listing is wide: set it a touch smaller so it fits the text block */
+pre.codeblock{font-size:12px}

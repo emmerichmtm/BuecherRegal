@@ -15,7 +15,7 @@ var FLIP_MS = 790;
 /* room a chapter heading needs to start on the current page;
    raise it to CONTENT_H (706) to force every chapter onto a fresh page */
 var CHAPTER_BREAK = 250;
-var STORE_KEY = "riesz-companion-book-v1";
+var STORE_KEY = "emmerich-2026-chan-hv-book-v1";
 
 var HL_COLORS  = ["#ffd83d", "#8ff08a", "#8fd6ff", "#ff9fd0", "#ffab5e"];
 var PEN_COLORS = ["#1f3f8f", "#8f2318", "#1c1a17", "#126b4a", "#6a3fa0"];
@@ -76,7 +76,9 @@ function typeset() {
     throwOnError: false,
     macros: {
       "\\R": "\\mathbb{R}", "\\Q": "\\mathbb{Q}",
-      "\\abs": "\\lvert #1 \\rvert", "\\norm": "\\lVert #1 \\rVert"
+      "\\abs": "\\lvert #1 \\rvert", "\\norm": "\\lVert #1 \\rVert",
+      "\\vol": "\\operatorname{vol}", "\\HV": "\\operatorname{HV}",
+      "\\Oh": "\\mathcal{O}"
     }
   });
 }
@@ -288,7 +290,7 @@ function makeFace(idx, side) {
         var run = document.createElement("div");
         run.className = "running";
         run.textContent = (side === "back")
-          ? "A Learning Companion · Riesz s = 2"
+          ? "Emmerich · Chan's Algorithm for the Hypervolume Indicator"
           : (rec.chapter || "");
         f.appendChild(run);
       }
@@ -1012,7 +1014,7 @@ function wire() {
 
   $("#btnExport").addEventListener("click", function () {
     var payload = JSON.stringify({ strokes: data.strokes, notes: data.notes, meta: data.meta }, null, 1);
-    var name = "riesz-companion-annotations.json";
+    var name = "emmerich-2026-chan-hv-annotations.json";
     if (window.claude && typeof window.claude.use === "function") {
       window.claude.use("downloads").then(function (dl) {
         if (!dl) { copyBackup(payload); return; }

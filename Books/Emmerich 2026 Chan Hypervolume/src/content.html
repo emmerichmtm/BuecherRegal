@@ -1,0 +1,560 @@
+<!-- ============ FRONT MATTER ============ -->
+<div class="page-break cover-page" data-nopaginate="1">
+  <div class="cover">
+    <div class="cover-rule"></div>
+    <div class="cover-kicker">Michael Emmerich</div>
+    <h1 class="cover-title" style="font-size:34px">Implementation of Chan&rsquo;s Algorithm for Computing the Hypervolume Indicator</h1>
+    <div class="cover-sub">Klee&rsquo;s measure problem made executable &mdash; the \(\Oh(n^{d/2})\) and<br>\(\Oh(n^{d/3}\operatorname{polylog} n)\) algorithms in pure Python</div>
+    <div class="cover-orn">&#10087;</div>
+    <div class="cover-meta">
+      University of Jyv&auml;skyl&auml;, Finland<br>
+      <span class="cover-dim">Companion paper to the <code style="font-size:inherit">FastHVChan</code> repository</span>
+      <div class="cover-date">August 2026</div>
+    </div>
+    <div class="cover-rule"></div>
+  </div>
+</div>
+
+<div class="page-break howto-page" data-nopaginate="1">
+  <h2 class="fm-head">Abstract</h2>
+  <p class="abstract">The hypervolume indicator, the Lebesgue measure of the region dominated by a set of \(n\) points relative to a reference point in \(\R^d\), is a special case of Klee&rsquo;s measure problem: computing the volume of a union of \(n\) axis-parallel boxes. Chan&rsquo;s FOCS&nbsp;2013 paper <i>&ldquo;Klee&rsquo;s Measure Problem Made Easy&rdquo;</i> gives (i)&nbsp;a remarkably simple \(\Oh(n^{d/2})\)-time algorithm for arbitrary boxes and (ii)&nbsp;an \(\Oh(n^{d/3}\operatorname{polylog} n)\)-time algorithm for orthants&mdash;the case that contains the hypervolume indicator problem. We describe complete, self-contained Python implementations of both algorithms; the second supports orthants of arbitrary orientation, with the grounded orthants of hypervolume computation as its primary application. We walk through both algorithms in an implementation-oriented way, including the symbolic machinery of &ldquo;basic functions&rdquo; that the \(d/3\)-algorithm requires, give a transparent complexity analysis of the code as written (including where it loses logarithmic factors against the paper&rsquo;s bounds and why), and validate both implementations exhaustively against independent exact methods. Empirically, the recursion-tree size of the \(d/3\)-algorithm scales with a visibly smaller exponent than that of the \(d/2\)-algorithm, while its symbolic bookkeeping carries large constant factors; the simple \(d/2\)-algorithm remains the practical method of choice.</p>
+</div>
+
+<div class="page-break howto-page" data-nopaginate="1">
+  <h2 class="fm-head">How to use this book</h2>
+  <ul class="howto">
+    <li><b>Turn pages</b> by clicking the outer edge of a page, using the arrows below the book, or pressing <kbd>&larr;</kbd> / <kbd>&rarr;</kbd>.</li>
+    <li><b>Highlight</b> with the marker &mdash; drag across any line, including displayed formulas. Press <kbd>H</kbd>.</li>
+    <li><b>Write</b> with the pencil for margin scribbles and arrows. Press <kbd>P</kbd>.</li>
+    <li><b>Pin a note</b> anywhere on the page and type into it. Press <kbd>N</kbd>.</li>
+    <li><b>Erase</b> with <kbd>E</kbd>, undo with <kbd>Ctrl</kbd>+<kbd>Z</kbd>, and return to plain reading with <kbd>R</kbd>.</li>
+    <li><b>Go full screen</b> with the expand button in the toolbar, or press <kbd>F</kbd>.</li>
+    <li>Annotations save in this browser automatically; the ⋯ menu exports them as JSON or prints the annotated book to PDF.</li>
+  </ul>
+</div>
+
+<div class="page-break howto-page" data-nopaginate="1">
+  <h2 class="fm-head">Notation at a glance</h2>
+  <dl class="glossary">
+    <dt>\(\HV(Y;r)\)</dt><dd>the hypervolume indicator: volume of \(\bigcup_i [y_i,r]\), boxes spanned by the points and the reference point.</dd>
+    <dt>KMP</dt><dd>Klee&rsquo;s measure problem &mdash; volume of a union of \(n\) axis-parallel boxes in \(\R^d\).</dd>
+    <dt>\(\Gamma\)</dt><dd>the current cell of the divide and conquer; algorithms measure the <i>complement</i> of the union inside it.</dd>
+    <dt>slab</dt><dd>a box spanning \(\Gamma\) in every dimension but one; eliminated by monotone re-coordination.</dd>
+    <dt>\((d{-}2)\)-, \((d{-}3)\)-faces</dt><dd>what survives simplification; their weighted count \(N\) drives both recurrences.</dd>
+    <dt>basic function</dt><dd>sum of terms \(c\cdot[E(x)]\cdot h_1(x_1)\cdots h_d(x_d)\) with step-function densities and monotone step conditions.</dd>
+    <dt>\(F,\ \tilde F\)</dt><dd>the integrand carried by the orthant recursion, and its grid-averaged compression.</dd>
+    <dt>\(T(N)\)</dt><dd>the running-time recurrences: \(2\,T(N/2^{2/d})+\Oh(N)\) and \(\Oh(r^d)\,T(N/r^3)+\Oh(r^dN)\).</dd>
+  </dl>
+</div>
+
+<div class="page-break toc-page" data-nopaginate="1" id="tocPage">
+  <h2 class="fm-head">Contents</h2>
+  <div id="tocBody" class="toc-body"></div>
+</div>
+
+<!-- ============ BODY ============ -->
+<h1 data-num="1">Introduction</h1>
+
+<p class="opening">Let \(Y=\{y_1,\dots,y_n\}\subset\R^d\) be a set of objective vectors (to be minimized) and let \(r\in\R^d\) be a reference point. The <i>hypervolume indicator</i> of \(Y\) is</p>
+<div class="eq">\[\HV(Y;r) \;=\; \vol\Bigl(\,\bigcup_{i=1}^{n}\,[y_i,r]\,\Bigr),\qquad [y_i,r] = \{x\in\R^d : y_i \le x \le r\},\tag{1}\]</div>
+<p>the volume of the union of the boxes spanned by the points and the reference point. It is the most prominent set-quality indicator in evolutionary multiobjective optimization; it is strictly monotonic with respect to Pareto dominance and is used both for performance assessment and for selection in indicator-based algorithms such as SMS-EMOA [7,&nbsp;8,&nbsp;13].</p>
+<p>Equation (1) exhibits the hypervolume indicator as a special case of <i>Klee&rsquo;s measure problem</i> (KMP) [1]: given \(n\) axis-parallel boxes in \(\R^d\), compute the volume of their union. The special structure is that all boxes share the corner \(r\); inside the bounding domain each box is a <i>grounded orthant</i> \(\{x : x \ge y_i\}\). Computing the hypervolume indicator is #P-hard in \(n{+}d\) [9], so for constant \(d\) the relevant question is the exponent of \(n\).</p>
+<p>For general KMP, Overmars and Yap&rsquo;s classical algorithm runs in \(\Oh(n^{d/2}\log n)\) time [2]; Chan improved this by an iterated-logarithmic factor [3] and finally, in the paper this implementation is based on, to a clean \(\Oh(n^{d/2})\) with a strikingly simple algorithm [4]. For the orthant special case, Bringmann&rsquo;s \(\Oh(n^{(d+2)/3})\) algorithm [5] was the first to break the \(d/2\) barrier; Y&#305;ld&#305;z and Suri gave \(\Oh(n^{(d-1)/2}\log n)\) for grounded boxes [6]; and Chan&rsquo;s Section&nbsp;4 achieves the current record,</p>
+<div class="eq">\[\Oh\bigl(n^{d/3}\operatorname{polylog} n\bigr)\qquad (d\ge 4),\tag{2}\]</div>
+<p>explicitly naming the hypervolume indicator problem as an application. There is also good reason to believe the \(d/2\) bound for general boxes is essentially optimal: deciding coverage is W[1]-hard in \(d\), and beating \(n^{d/2}\) combinatorially would improve long-standing bounds for \(d\)-clique [4].</p>
+<p>A different, practice-oriented lineage of exact algorithms is not based on Klee-style space partitioning: dimension-sweep methods, whose specialised four-dimensional representative achieves \(O(n^2)\) time [12], and the WFG algorithm, a recursive exclusive-hypervolume scheme with exponential worst case but excellent practical behaviour [11]. The repository accompanying this paper implements both (in Python and C99) purely as comparison baselines, alongside a vendored Y&#305;ld&#305;z&ndash;Suri-style solver [6]; they appear in the benchmark report (<code>paper/benchmarks.pdf</code>) but are otherwise not discussed further &mdash; this paper remains focused on Chan&rsquo;s algorithms.</p>
+
+<p><b class="runin">Contribution.</b> This paper documents two self-contained Python implementations (standard library only):</p>
+<ul>
+<li><code>chan_hypervolume.py</code> &mdash; Chan&rsquo;s Section-2 algorithm for arbitrary boxes (\(\Oh(n^{d/2})\) in the paper; \(\Oh(n^{d/2}\log n)\) as implemented, see Section 4.1), with a hypervolume front end. To our knowledge this is among the first faithful public implementations of the FOCS 2013 algorithm.</li>
+<li><code>chan_orthant_dby3.py</code> &mdash; Chan&rsquo;s Section-4.2 orthant algorithm for orthants of arbitrary orientation (the hypervolume case, grounded orthants, is the default front end), including the full symbolic &ldquo;basic function&rdquo; machinery of the paper&rsquo;s Lemmas&nbsp;4.4 and&nbsp;4.5. We are not aware of any previous implementation of this algorithm.</li>
+</ul>
+<p>Section 2 walks through the simple algorithm, Section 3 through the orthant algorithm, Section 4 gives a transparent complexity analysis of the implementations as written, and Section 5 reports validation and scaling experiments.</p>
+
+<p><b class="runin">Conventions.</b> Throughout, \(d\) is a constant, boxes are axis-parallel, and&mdash;following Chan&mdash;all algorithms compute the measure of the <i>complement</i> of the union within a box domain \(\Gamma\) (a &ldquo;cell&rdquo;); the union&rsquo;s volume is recovered as \(\vol(\Gamma)\) minus the result. For hypervolume, minimization is assumed and the domain is \(\Gamma=[\ell,r]\) with \(\ell_k=\min_i (y_i)_k\); each contributing box, restricted to \(\Gamma\), is the grounded orthant \(\{x : x\ge y_i\}\). Dominated points may be discarded beforehand; the implementation does so by default with an \(\Oh(n^2 d)\) prefilter.</p>
+
+<h1 data-num="2" data-title="The simple O(n^{d/2}) algorithm">The simple \(\Oh(n^{d/2})\) algorithm</h1>
+
+<p class="opening">Chan&rsquo;s Section-2 algorithm is a \(k\)-d-tree-style divide and conquer with one twist: the input is <i>simplified</i> before each cut.</p>
+
+<div class="algo">
+<div class="algo-head">Algorithm 1 &nbsp;<span class="algo-name">\(\textsc{Measure}(B,\Gamma)\) &mdash; measure of \(\Gamma\setminus\bigcup B\) &nbsp;[4]</span></div>
+<ol>
+<li><b>if</b> \(|B|\) is below a constant <b>then return</b> the answer directly (inclusion&ndash;exclusion)</li>
+<li><i>Simplify</i> \(B\) (eliminate all boxes that are slabs relative to \(\Gamma\))</li>
+<li><i>Cut</i> \(\Gamma\) into subcells \(\Gamma_L,\Gamma_R\) by a weighted-median hyperplane</li>
+<li><b>return</b> \(\textsc{Measure}(B|_{\Gamma_L},\Gamma_L)+\textsc{Measure}(B|_{\Gamma_R},\Gamma_R)\)</li>
+</ol>
+</div>
+
+<h2>Step 1: simplification by slab collapse</h2>
+<p>Call a box a <i>slab</i> (relative to the cell \(\Gamma\)) if, restricted to \(\Gamma\), it has the form \(\{x:\alpha\le x_i\le\beta\}\), i.e.&nbsp;it spans \(\Gamma\) in every dimension except \(i\). For each axis \(i\), the union of the slabs of axis \(i\) is a union of disjoint intervals in the \(x_i\)-coordinate; every point inside them is covered, so they contribute nothing to the complement. Chan&rsquo;s elegant elimination is a <i>monotone re-coordination</i>: readjust all \(x_i\)-values (of the cell and of every box) so that each covered interval is squeezed to length zero (Figure 1). The measure of the complement is preserved exactly, the slabs disappear, and&mdash;the key structural consequence&mdash;<i>every surviving box now fails to span \(\Gamma\) in at least two dimensions</i>, i.e.&nbsp;has a \((d{-}2)\)-face intersecting&nbsp;\(\Gamma\).</p>
+
+<figure class="figure tikz-embed">
+<svg version='1.1' xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' width='282.50137pt' height='92.939925pt' viewBox='-70.007476 -70.007474 282.50137 92.939925'>
+<defs>
+<path id='g2-0' d='M5.110834-6.097136H.340722V-5.819178H.546949C1.23736-5.819178 1.255293-5.720548 1.255293-5.388792V-.708344C1.255293-.376588 1.23736-.277958 .546949-.277958H.340722V0C.744209-.026899 1.300125-.026899 1.712578-.026899C2.071233-.026899 2.887173-.026899 3.200996 0V-.277958H2.914072C2.098132-.277958 2.062267-.385554 2.062267-.71731V-5.451557C2.062267-5.756413 2.080199-5.819178 2.501619-5.819178H3.469988C4.779078-5.819178 4.967372-5.290162 5.110834-4.079701H5.361893L5.110834-6.097136Z'/>
+<path id='g2-40' d='M3.057534 2.133998C3.057534 2.089166 3.030635 2.062267 2.976837 1.999502C1.820174 .941469 1.470486-.672478 1.470486-2.241594C1.470486-3.631382 1.739477-5.317061 3.003736-6.518555C3.039601-6.554421 3.057534-6.58132 3.057534-6.626152C3.057534-6.688917 3.012702-6.724782 2.949938-6.724782C2.842341-6.724782 2.035367-6.079203 1.551183-5.101868C1.120797-4.241096 .905604-3.317559 .905604-2.25056C.905604-1.604981 .986301-.582814 1.479452 .475218C2.008468 1.578082 2.842341 2.232628 2.949938 2.232628C3.012702 2.232628 3.057534 2.196762 3.057534 2.133998Z'/>
+<path id='g2-41' d='M2.67198-2.25056C2.67198-2.985803 2.564384-3.972105 2.098132-4.967372C1.569116-6.070237 .735243-6.724782 .627646-6.724782C.537983-6.724782 .52005-6.653051 .52005-6.626152C.52005-6.58132 .537983-6.554421 .600747-6.491656C1.120797-6.025405 2.107098-4.805978 2.107098-2.25056C2.107098-.968369 1.873973 .81594 .573848 2.026401C.555915 2.0533 .52005 2.089166 .52005 2.133998C.52005 2.160897 .537983 2.232628 .627646 2.232628C.735243 2.232628 1.542217 1.587049 2.026401 .609714C2.456787-.251059 2.67198-1.174595 2.67198-2.25056Z'/>
+<path id='g2-45' d='M2.555417-1.65878V-2.214695H.09863V-1.65878H2.555417Z'/>
+<path id='g2-97' d='M3.066501-.645579C3.111333-.268991 3.371357 .053798 3.756912 .053798C3.981071 .053798 4.545953-.080697 4.545953-.798007V-1.300125H4.294894V-.806974C4.294894-.708344 4.294894-.260025 3.972105-.260025S3.649315-.690411 3.649315-.833873V-2.402989C3.649315-2.914072 3.649315-3.218929 3.245828-3.58655C2.914072-3.882441 2.483686-4.016936 2.035367-4.016936C1.282192-4.016936 .654545-3.640349 .654545-3.066501C.654545-2.788543 .842839-2.636115 1.075965-2.636115C1.318057-2.636115 1.488418-2.815442 1.488418-3.048568C1.488418-3.434122 1.093898-3.478954 1.084932-3.478954C1.327024-3.71208 1.75741-3.792777 2.017435-3.792777C2.47472-3.792777 2.985803-3.452055 2.985803-2.663014V-2.367123C2.501619-2.349191 1.829141-2.304359 1.228394-2.017435C.582814-1.703611 .385554-1.23736 .385554-.878705C.385554-.143462 1.255293 .09863 1.85604 .09863C2.600249 .09863 2.940971-.394521 3.066501-.645579ZM2.985803-1.264259C2.985803-.394521 2.313325-.125529 1.918804-.125529C1.497385-.125529 1.102864-.430386 1.102864-.878705C1.102864-1.470486 1.613948-2.098132 2.985803-2.15193V-1.264259Z'/>
+<path id='g2-98' d='M1.622914-2.860274C1.622914-3.030635 1.622914-3.039601 1.721544-3.183064C2.026401-3.595517 2.465753-3.738979 2.806476-3.738979C3.19203-3.738979 3.550685-3.523786 3.783811-3.147198C4.016936-2.761644 4.034869-2.232628 4.034869-1.945704C4.034869-1.524284 3.981071-1.049066 3.747945-.690411C3.550685-.403487 3.183064-.125529 2.707846-.125529C2.304359-.125529 1.963636-.340722 1.748443-.672478C1.622914-.860772 1.622914-.869738 1.622914-1.0401V-2.860274ZM1.542217-.546949C1.820174-.152428 2.268493 .09863 2.752677 .09863C3.819676 .09863 4.805978-.762142 4.805978-1.936737C4.805978-3.057534 3.918306-3.963138 2.842341-3.963138C2.232628-3.963138 1.811208-3.649315 1.596015-3.407223V-6.222665L.268991-6.124035V-5.846077C.878705-5.846077 .959402-5.783313 .959402-5.34396V0H1.210461L1.542217-.546949Z'/>
+<path id='g2-99' d='M3.263761-3.523786C3.075467-3.48792 2.896139-3.362391 2.896139-3.102366C2.896139-2.86924 3.075467-2.689913 3.308593-2.689913S3.730012-2.842341 3.730012-3.120299C3.730012-3.676214 3.102366-4.016936 2.313325-4.016936C1.165629-4.016936 .304857-3.057534 .304857-1.936737C.304857-.780075 1.23736 .09863 2.295392 .09863C3.541719 .09863 3.828643-.986301 3.828643-1.066999C3.828643-1.174595 3.730012-1.174595 3.703113-1.174595C3.604483-1.174595 3.604483-1.156663 3.550685-1.004234C3.344458-.385554 2.842341-.152428 2.385056-.152428C1.811208-.152428 1.075965-.61868 1.075965-1.945704C1.075965-3.344458 1.793275-3.765878 2.331258-3.765878C2.447821-3.765878 2.932005-3.747945 3.263761-3.523786Z'/>
+<path id='g2-100' d='M3.48792-1.075965C3.48792-.91457 3.48792-.887671 3.353425-.699377C3.075467-.29589 2.663014-.125529 2.304359-.125529C1.918804-.125529 1.560149-.340722 1.327024-.71731C1.093898-1.102864 1.075965-1.63188 1.075965-1.918804C1.075965-2.340224 1.129763-2.815442 1.362889-3.174097C1.560149-3.461021 1.927771-3.738979 2.402989-3.738979C2.779577-3.738979 3.138232-3.550685 3.380324-3.209963C3.48792-3.066501 3.48792-3.057534 3.48792-2.887173V-1.075965ZM3.514819-3.434122C3.469988-3.48792 3.066501-3.963138 2.367123-3.963138C1.264259-3.963138 .304857-3.084433 .304857-1.927771C.304857-.806974 1.201494 .09863 2.268493 .09863C2.923039 .09863 3.326526-.286924 3.48792-.475218V.09863L4.841843 0V-.277958C4.23213-.277958 4.151432-.340722 4.151432-.780075V-6.222665L2.824408-6.124035V-5.846077C3.434122-5.846077 3.514819-5.783313 3.514819-5.34396V-3.434122Z'/>
+<path id='g2-101' d='M3.58655-2.0533C3.783811-2.0533 3.828643-2.0533 3.828643-2.241594C3.828643-3.165131 3.326526-4.016936 2.178829-4.016936C1.102864-4.016936 .260025-3.084433 .260025-1.972603C.260025-.798007 1.201494 .09863 2.295392 .09863S3.828643-.860772 3.828643-1.066999C3.828643-1.129763 3.783811-1.183562 3.703113-1.183562C3.61345-1.183562 3.58655-1.120797 3.577584-1.084932C3.272727-.170361 2.47472-.152428 2.340224-.152428C1.909838-.152428 1.542217-.394521 1.33599-.699377C1.0401-1.13873 1.031133-1.676712 1.031133-2.0533H3.58655ZM1.0401-2.268493C1.120797-3.649315 1.927771-3.792777 2.178829-3.792777C2.67198-3.792777 3.209963-3.416189 3.218929-2.268493H1.0401Z'/>
+<path id='g2-102' d='M2.689913-3.58655V-3.864508H1.622914V-4.877709C1.622914-5.693649 2.062267-6.097136 2.447821-6.097136C2.537484-6.097136 2.627148-6.079203 2.716812-6.043337C2.627148-6.007472 2.483686-5.899875 2.483686-5.675716C2.483686-5.44259 2.654047-5.281196 2.878207-5.281196C3.120299-5.281196 3.281694-5.451557 3.281694-5.684682C3.281694-6.025405 2.940971-6.321295 2.447821-6.321295C1.748443-6.321295 1.0132-5.792279 1.0132-4.895641V-3.864508H.304857V-3.58655H1.0132V-.690411C1.0132-.277958 .91457-.277958 .32279-.277958V0C.798007-.017933 .91457-.026899 1.371856-.026899C1.730511-.026899 1.945704-.017933 2.510585 0V-.277958H2.331258C1.676712-.277958 1.649813-.376588 1.649813-.708344V-3.58655H2.689913Z'/>
+<path id='g2-103' d='M1.120797-1.604981C1.344956-1.461519 1.622914-1.327024 2.035367-1.327024C2.887173-1.327024 3.532752-1.936737 3.532752-2.645081C3.532752-3.084433 3.281694-3.38929 3.165131-3.514819C3.523786-3.837609 3.945205-3.837609 4.052802-3.837609C4.00797-3.81071 3.936239-3.765878 3.936239-3.604483C3.936239-3.505853 3.999004-3.335492 4.20523-3.335492C4.33076-3.335492 4.474222-3.425156 4.474222-3.61345C4.474222-3.783811 4.348692-4.061768 3.990037-4.061768C3.730012-4.061768 3.326526-3.963138 3.012702-3.640349C2.77061-3.837609 2.420922-3.963138 2.044334-3.963138C1.192528-3.963138 .546949-3.353425 .546949-2.645081C.546949-2.187796 .81594-1.865006 .959402-1.730511C.941469-1.712578 .690411-1.398755 .690411-.986301C.690411-.681445 .833873-.358655 1.075965-.19726C.61868-.053798 .260025 .277958 .260025 .699377C.260025 1.33599 1.147696 1.847073 2.295392 1.847073C3.398257 1.847073 4.339726 1.371856 4.339726 .681445C4.339726 .313823 4.169365-.080697 3.837609-.29589C3.335492-.609714 2.815442-.609714 1.963636-.609714C1.784309-.609714 1.497385-.609714 1.425654-.627646C1.165629-.681445 .995268-.923537 .995268-1.210461C.995268-1.353923 1.0401-1.488418 1.120797-1.604981ZM2.035367-1.569116C1.23736-1.569116 1.23736-2.447821 1.23736-2.645081C1.23736-2.887173 1.255293-3.19203 1.407721-3.407223C1.542217-3.58655 1.784309-3.721046 2.035367-3.721046C2.842341-3.721046 2.842341-2.851308 2.842341-2.645081S2.842341-1.569116 2.035367-1.569116ZM2.447821-.044832C2.734745-.044832 3.837609-.035866 3.837609 .690411C3.837609 1.201494 3.147198 1.604981 2.304359 1.604981C1.425654 1.604981 .762142 1.183562 .762142 .690411C.762142 .546949 .851806-.044832 1.622914-.044832H2.447821Z'/>
+<path id='g2-104' d='M1.640847-6.222665L.313823-6.124035V-5.846077C.923537-5.846077 1.004234-5.783313 1.004234-5.34396V-.690411C1.004234-.277958 .905604-.277958 .313823-.277958V0C.735243-.017933 .905604-.026899 1.33599-.026899S1.882939-.017933 2.358157 0V-.277958C1.766376-.277958 1.667746-.277958 1.667746-.690411V-2.322291C1.667746-3.272727 2.340224-3.738979 2.905106-3.738979C3.434122-3.738979 3.550685-3.299626 3.550685-2.761644V-.690411C3.550685-.277958 3.452055-.277958 2.860274-.277958V0C3.281694-.017933 3.452055-.026899 3.882441-.026899S4.42939-.017933 4.904608 0V-.277958C4.447323-.277958 4.223163-.277958 4.214197-.555915V-2.27746C4.214197-3.021669 4.214197-3.281694 3.963138-3.595517C3.756912-3.846575 3.416189-3.963138 2.96787-3.963138C2.367123-3.963138 1.927771-3.649315 1.649813-3.147198H1.640847V-6.222665Z'/>
+<path id='g2-105' d='M1.649813-3.963138L.358655-3.864508V-3.58655C.932503-3.58655 1.0132-3.532752 1.0132-3.0934V-.690411C1.0132-.277958 .91457-.277958 .32279-.277958V0C.726276-.017933 .91457-.026899 1.309091-.026899C1.452553-.026899 1.829141-.026899 2.268493 0V-.277958C1.685679-.277958 1.649813-.32279 1.649813-.672478V-3.963138ZM1.676712-5.523288C1.676712-5.792279 1.461519-6.007472 1.192528-6.007472C.91457-6.007472 .708344-5.783313 .708344-5.523288S.91457-5.039103 1.192528-5.039103C1.461519-5.039103 1.676712-5.254296 1.676712-5.523288Z'/>
+<path id='g2-108' d='M1.649813-6.222665L.32279-6.124035V-5.846077C.932503-5.846077 1.0132-5.783313 1.0132-5.34396V-.690411C1.0132-.277958 .91457-.277958 .32279-.277958V0C.744209-.017933 .91457-.026899 1.327024-.026899C1.748443-.026899 1.900872-.017933 2.340224 0V-.277958C1.748443-.277958 1.649813-.277958 1.649813-.690411V-6.222665Z'/>
+<path id='g2-110' d='M1.667746-2.322291C1.667746-3.272727 2.340224-3.738979 2.905106-3.738979C3.434122-3.738979 3.550685-3.299626 3.550685-2.761644V-.690411C3.550685-.277958 3.452055-.277958 2.860274-.277958V0C3.281694-.017933 3.452055-.026899 3.882441-.026899S4.42939-.017933 4.904608 0V-.277958C4.447323-.277958 4.223163-.277958 4.214197-.555915V-2.27746C4.214197-3.021669 4.214197-3.281694 3.963138-3.595517C3.756912-3.846575 3.416189-3.963138 2.96787-3.963138C2.133998-3.963138 1.748443-3.344458 1.622914-3.0934H1.613948V-3.963138L.313823-3.864508V-3.58655C.923537-3.58655 1.004234-3.523786 1.004234-3.084433V-.690411C1.004234-.277958 .905604-.277958 .313823-.277958V0C.735243-.017933 .905604-.026899 1.33599-.026899S1.882939-.017933 2.358157 0V-.277958C1.766376-.277958 1.667746-.277958 1.667746-.690411V-2.322291Z'/>
+<path id='g2-111' d='M4.339726-1.909838C4.339726-3.084433 3.407223-4.016936 2.304359-4.016936C1.165629-4.016936 .260025-3.057534 .260025-1.909838C.260025-.789041 1.192528 .09863 2.295392 .09863C3.434122 .09863 4.339726-.806974 4.339726-1.909838ZM2.304359-.152428C1.85604-.152428 1.479452-.376588 1.273225-.726276C1.0401-1.102864 1.031133-1.578082 1.031133-1.990535C1.031133-2.322291 1.031133-2.833375 1.255293-3.200996C1.524284-3.658281 1.972603-3.792777 2.295392-3.792777C2.806476-3.792777 3.174097-3.505853 3.353425-3.200996C3.559651-2.824408 3.568618-2.367123 3.568618-1.990535C3.568618-1.65878 3.568618-1.13873 3.344458-.744209C3.0934-.331756 2.680946-.152428 2.304359-.152428Z'/>
+<path id='g2-112' d='M1.622914-3.012702C1.927771-3.532752 2.420922-3.71208 2.797509-3.71208C3.496887-3.71208 4.034869-2.905106 4.034869-1.936737C4.034869-.91457 3.425156-.125529 2.698879-.125529C2.295392-.125529 1.95467-.358655 1.739477-.672478C1.622914-.851806 1.622914-.869738 1.622914-1.0401V-3.012702ZM1.622914-.430386C1.85604-.19726 2.160897 .09863 2.752677 .09863C3.819676 .09863 4.805978-.762142 4.805978-1.936737C4.805978-3.066501 3.927273-3.963138 2.86924-3.963138C2.385056-3.963138 1.936737-3.765878 1.596015-3.398257V-3.963138L.268991-3.864508V-3.58655C.905604-3.58655 .959402-3.532752 .959402-3.147198V1.049066C.959402 1.461519 .860772 1.461519 .268991 1.461519V1.739477C.690411 1.721544 .860772 1.712578 1.291158 1.712578S1.838107 1.721544 2.313325 1.739477V1.461519C1.721544 1.461519 1.622914 1.461519 1.622914 1.049066V-.430386Z'/>
+<path id='g2-114' d='M1.596015-2.0533C1.596015-2.420922 1.694645-3.738979 2.716812-3.738979V-3.730012C2.698879-3.721046 2.555417-3.61345 2.555417-3.398257C2.555417-3.156164 2.743711-3.003736 2.949938-3.003736C3.138232-3.003736 3.344458-3.138232 3.344458-3.407223C3.344458-3.694147 3.075467-3.963138 2.67198-3.963138C2.133998-3.963138 1.75741-3.58655 1.551183-3.030635H1.542217V-3.963138L.268991-3.864508V-3.58655C.878705-3.58655 .959402-3.523786 .959402-3.084433V-.690411C.959402-.277958 .860772-.277958 .268991-.277958V0C.744209-.017933 .860772-.026899 1.318057-.026899C1.676712-.026899 1.891905-.017933 2.456787 0V-.277958H2.27746C1.622914-.277958 1.596015-.376588 1.596015-.708344V-2.0533Z'/>
+<path id='g2-115' d='M3.084433-3.783811C3.084433-3.936239 3.084433-4.016936 2.976837-4.016936C2.932005-4.016936 2.914072-4.016936 2.797509-3.90934C2.779577-3.891407 2.698879-3.81071 2.645081-3.765878C2.367123-3.963138 2.089166-4.016936 1.784309-4.016936C.600747-4.016936 .304857-3.362391 .304857-2.905106C.304857-2.618182 .430386-2.385056 .636613-2.187796C.941469-1.909838 1.282192-1.847073 1.739477-1.766376C2.196762-1.676712 2.349191-1.649813 2.546451-1.497385C2.636115-1.425654 2.860274-1.255293 2.860274-.91457C2.860274-.125529 1.95467-.125529 1.829141-.125529C.91457-.125529 .681445-.887671 .573848-1.371856C.546949-1.461519 .537983-1.515318 .430386-1.515318C.304857-1.515318 .304857-1.443587 .304857-1.282192V-.134496C.304857 .017933 .304857 .09863 .412453 .09863C.466252 .09863 .475218 .089664 .636613-.080697C.672478-.134496 .771108-.251059 .81594-.29589C1.192528 .071731 1.604981 .09863 1.829141 .09863C2.932005 .09863 3.317559-.546949 3.317559-1.147696C3.317559-1.551183 3.138232-1.793275 2.940971-1.999502C2.636115-2.295392 2.313325-2.358157 1.649813-2.483686C1.416687-2.528518 .762142-2.645081 .762142-3.156164C.762142-3.443088 .968369-3.819676 1.784309-3.819676C2.752677-3.819676 2.815442-3.075467 2.833375-2.851308C2.842341-2.743711 2.842341-2.689913 2.958904-2.689913C3.084433-2.689913 3.084433-2.752677 3.084433-2.923039V-3.783811Z'/>
+<path id='g2-116' d='M2.914072-3.58655V-3.864508H1.613948V-5.514321H1.362889C1.353923-4.761146 1.0401-3.837609 .170361-3.81071V-3.58655H.950436V-1.111831C.950436-.107597 1.676712 .09863 2.15193 .09863C2.752677 .09863 3.066501-.475218 3.066501-1.111831V-1.622914H2.815442V-1.13873C2.815442-.475218 2.537484-.152428 2.214695-.152428C1.613948-.152428 1.613948-.941469 1.613948-1.102864V-3.58655H2.914072Z'/>
+<path id='g2-119' d='M5.711582-2.99477C5.908842-3.541719 6.276463-3.577584 6.464757-3.58655V-3.864508C6.106102-3.837609 6.088169-3.837609 5.792279-3.837609C5.451557-3.837609 5.326027-3.837609 4.967372-3.864508V-3.58655C5.352927-3.577584 5.478456-3.335492 5.478456-3.156164C5.478456-3.066501 5.460523-3.012702 5.433624-2.949938L4.608717-.708344L3.703113-3.165131C3.658281-3.281694 3.658281-3.308593 3.658281-3.335492C3.658281-3.568618 3.936239-3.58655 4.169365-3.58655V-3.864508C3.756912-3.837609 3.38929-3.837609 3.245828-3.837609C2.96787-3.837609 2.707846-3.837609 2.420922-3.864508V-3.58655C2.707846-3.58655 2.887173-3.577584 2.985803-3.452055C3.066501-3.353425 3.183064-2.99477 3.183064-2.96787C3.183064-2.949938 3.138232-2.851308 3.138232-2.842341L2.402989-.824907L1.551183-3.156164C1.497385-3.29066 1.497385-3.308593 1.497385-3.344458C1.497385-3.58655 1.847073-3.58655 2.017435-3.58655V-3.864508C1.604981-3.846575 1.398755-3.837609 1.0401-3.837609C.744209-3.837609 .484184-3.837609 .179328-3.864508V-3.58655C.609714-3.58655 .726276-3.568618 .833873-3.263761L1.990535-.09863C2.035367 .008966 2.062267 .09863 2.196762 .09863S2.367123 0 2.402989-.089664L3.317559-2.600249L4.241096-.089664C4.276961 0 4.312827 .09863 4.447323 .09863S4.608717 .008966 4.644583-.080697L5.711582-2.99477Z'/>
+<path id='g0-120' d='M4.411457-3.622416C4.079701-3.559651 3.981071-3.272727 3.981071-3.138232C3.981071-2.96787 4.1066-2.815442 4.33076-2.815442C4.581818-2.815442 4.82391-3.030635 4.82391-3.344458C4.82391-3.756912 4.375592-3.963138 3.954172-3.963138C3.416189-3.963138 3.102366-3.48792 2.99477-3.299626C2.824408-3.738979 2.429888-3.963138 1.999502-3.963138C1.0401-3.963138 .52005-2.815442 .52005-2.582316C.52005-2.501619 .582814-2.47472 .645579-2.47472C.726276-2.47472 .753176-2.519552 .771108-2.57335C1.049066-3.461021 1.640847-3.738979 1.981569-3.738979C2.241594-3.738979 2.47472-3.568618 2.47472-3.147198C2.47472-2.824408 2.089166-1.389788 1.972603-.959402C1.900872-.681445 1.63188-.125529 1.13873-.125529C.959402-.125529 .771108-.188294 .681445-.242092C.923537-.286924 1.102864-.493151 1.102864-.726276C1.102864-.950436 .932503-1.049066 .762142-1.049066C.502117-1.049066 .268991-.824907 .268991-.52005C.268991-.080697 .753176 .09863 1.129763 .09863C1.649813 .09863 1.95467-.331756 2.089166-.573848C2.313325 .017933 2.842341 .09863 3.084433 .09863C4.052802 .09863 4.563885-1.066999 4.563885-1.282192C4.563885-1.327024 4.536986-1.389788 4.447323-1.389788C4.348692-1.389788 4.339726-1.353923 4.294894-1.219427C4.097634-.573848 3.577584-.125529 3.111333-.125529C2.851308-.125529 2.609215-.286924 2.609215-.71731C2.609215-.91457 2.734745-1.407721 2.815442-1.748443C2.851308-1.909838 3.0934-2.878207 3.111333-2.940971C3.218929-3.263761 3.48792-3.738979 3.945205-3.738979C4.1066-3.738979 4.276961-3.71208 4.411457-3.622416Z'/>
+<path id='g1-49' d='M2.145953-3.795766C2.145953-3.975093 2.122042-3.975093 1.942715-3.975093C1.548194-3.592528 .938481-3.592528 .723288-3.592528V-3.359402C.878705-3.359402 1.273225-3.359402 1.63188-3.526775V-.508095C1.63188-.310834 1.63188-.233126 1.016189-.233126H.759153V0C1.08792-.02391 1.554172-.02391 1.888917-.02391S2.689913-.02391 3.01868 0V-.233126H2.761644C2.145953-.233126 2.145953-.310834 2.145953-.508095V-3.795766Z'/>
+</defs>
+<g id='page1'>
+<g stroke-miterlimit='10' transform='translate(-55.183656,7.125775)scale(0.996264,-0.996264)'>
+<g fill='#000' stroke='#000'>
+<g stroke-width='0.4'>
+<g stroke-width='0.8'>
+<path d='M0 0V76.82251H110.96594V0ZM110.96594 76.82251' fill='none'/>
+</g>
+<g fill='#d9d9d9' stroke='#d9d9d9'>
+<path d='M21.33954 0V76.82251H40.54501V0ZM40.54501 76.82251' stroke='none'/>
+</g>
+<g fill='#d9d9d9' stroke='#d9d9d9'>
+<path d='M72.55435 0V76.82251H89.62639V0ZM89.62639 76.82251' stroke='none'/>
+</g>
+<path d='M21.33954 0V76.82251H40.54501V0ZM40.54501 76.82251' fill='none'/>
+<path d='M72.55435 0V76.82251H89.62639V0ZM89.62639 76.82251' fill='none'/>
+<g stroke-dasharray='3.0,3.0' stroke-dashoffset='0.0'>
+<path d='M8.53569 44.81319V66.15276H57.61707V44.81319ZM57.61707 66.15276' fill='none'/>
+</g>
+<g transform='translate(-11.54643,-10.28297)'>
+<g stroke='none' transform='scale(-1.00375,1.00375)translate(-55.183656,7.125775)scale(-1,-1)'>
+<g fill='#000'>
+<g stroke='none'>
+<use x='-55.183656' y='7.125775' xlink:href='#g2-99'/>
+<use x='-51.087931' y='7.125775' xlink:href='#g2-101'/>
+<use x='-46.988743' y='7.125775' xlink:href='#g2-108'/>
+<use x='-44.428914' y='7.125775' xlink:href='#g2-108'/>
+<use x='-38.797293' y='7.125775' xlink:href='#g2-0'/>
+<use x='-29.966578' y='7.125775' xlink:href='#g2-119'/>
+<use x='-23.311025' y='7.125775' xlink:href='#g2-105'/>
+<use x='-20.751197' y='7.125775' xlink:href='#g2-116'/>
+<use x='-17.167437' y='7.125775' xlink:href='#g2-104'/>
+<use x='-8.975987' y='7.125775' xlink:href='#g2-116'/>
+<use x='-5.648211' y='7.125775' xlink:href='#g2-119'/>
+<use x='.751359' y='7.125775' xlink:href='#g2-111'/>
+<use x='8.430844' y='7.125775' xlink:href='#g0-120'/>
+<use x='13.654301' y='8.122023' xlink:href='#g1-49'/>
+<use x='17.805345' y='7.125775' xlink:href='#g2-45'/>
+<use x='20.877139' y='7.125775' xlink:href='#g2-115'/>
+<use x='24.512102' y='7.125775' xlink:href='#g2-108'/>
+<use x='27.07193' y='7.125775' xlink:href='#g2-97'/>
+<use x='31.67962' y='7.125775' xlink:href='#g2-98'/>
+<use x='36.799277' y='7.125775' xlink:href='#g2-115'/>
+<use x='43.506033' y='7.125775' xlink:href='#g2-40'/>
+<use x='47.089793' y='7.125775' xlink:href='#g2-115'/>
+<use x='50.724755' y='7.125775' xlink:href='#g2-104'/>
+<use x='55.844412' y='7.125775' xlink:href='#g2-97'/>
+<use x='60.452102' y='7.125775' xlink:href='#g2-100'/>
+<use x='65.571759' y='7.125775' xlink:href='#g2-101'/>
+<use x='69.670947' y='7.125775' xlink:href='#g2-100'/>
+<use x='74.790603' y='7.125775' xlink:href='#g2-41'/>
+</g>
+</g>
+</g>
+</g>
+<g stroke-width='0.8'>
+<path d='M128.03734 38.41092H157.20258' fill='none'/>
+<g transform='translate(157.20258,38.41092)'>
+<g stroke-width='0.64'>
+ <g stroke-dasharray='none' stroke-dashoffset='0.0'>
+ <g stroke-linecap='round'>
+ <g stroke-linejoin='round'>
+ <path d='M-1.55997 2.07996C-1.42996 1.29997 0 .12999 .38998 0C0-.12999-1.42996-1.29997-1.55997-2.07996' fill='none'/>
+ </g>
+ </g>
+ </g>
+ </g>
+</g>
+</g>
+<g stroke-width='0.8'>
+<path d='M174.9847 0V76.82251H249.67314V0ZM249.67314 76.82251' fill='none'/>
+</g>
+<g stroke-width='1.2'>
+<path d='M196.32423 0V76.82251' fill='none'/>
+</g>
+<g stroke-width='1.2'>
+<path d='M228.33357 0V76.82251' fill='none'/>
+</g>
+<g stroke-dasharray='3.0,3.0' stroke-dashoffset='0.0'>
+<path d='M183.52039 44.81319V66.15276H213.39561V44.81319ZM213.39561 66.15276' fill='none'/>
+</g>
+<g transform='translate(159.30948,-9.78297)'>
+<g stroke='none' transform='scale(-1.00375,1.00375)translate(-55.183656,7.125775)scale(-1,-1)'>
+<g fill='#000'>
+<g stroke='none'>
+<use x='-55.183656' y='7.125775' xlink:href='#g2-97'/>
+<use x='-50.575965' y='7.125775' xlink:href='#g2-102'/>
+<use x='-47.760154' y='7.125775' xlink:href='#g2-116'/>
+<use x='-44.176395' y='7.125775' xlink:href='#g2-101'/>
+<use x='-40.077207' y='7.125775' xlink:href='#g2-114'/>
+<use x='-33.400892' y='7.125775' xlink:href='#g2-99'/>
+<use x='-29.305167' y='7.125775' xlink:href='#g2-111'/>
+<use x='-24.697476' y='7.125775' xlink:href='#g2-108'/>
+<use x='-22.137648' y='7.125775' xlink:href='#g2-108'/>
+<use x='-19.57782' y='7.125775' xlink:href='#g2-97'/>
+<use x='-14.970129' y='7.125775' xlink:href='#g2-112'/>
+<use x='-9.850473' y='7.125775' xlink:href='#g2-115'/>
+<use x='-6.21551' y='7.125775' xlink:href='#g2-105'/>
+<use x='-3.655682' y='7.125775' xlink:href='#g2-110'/>
+<use x='1.463974' y='7.125775' xlink:href='#g2-103'/>
+<use x='9.143459' y='7.125775' xlink:href='#g2-98'/>
+<use x='14.519098' y='7.125775' xlink:href='#g2-111'/>
+<use x='19.126789' y='7.125775' xlink:href='#g2-116'/>
+<use x='22.710548' y='7.125775' xlink:href='#g2-104'/>
+<use x='30.901998' y='7.125775' xlink:href='#g2-115'/>
+<use x='34.536961' y='7.125775' xlink:href='#g2-108'/>
+<use x='37.096789' y='7.125775' xlink:href='#g2-97'/>
+<use x='41.70448' y='7.125775' xlink:href='#g2-98'/>
+<use x='46.824136' y='7.125775' xlink:href='#g2-115'/>
+</g>
+</g>
+</g>
+</g>
+</g>
+</g>
+</g>
+</g>
+</svg>
+<figcaption><b>Figure 1.</b> Slab collapse in \(d=2\). The \(x_1\)-extents covered by slabs are squeezed to zero width by a monotone map of the \(x_1\)-axis; the dashed box is an unaffected input box whose coordinates are pushed through the same map. The uncovered area is unchanged.</figcaption>
+</figure>
+
+<p>The implementation (<code>_simplify</code> + <code>_collapse_map</code>) merges the slab intervals per axis in \(\Oh(m\log m)\) time and pushes all coordinates through the piecewise-linear collapse map. One subtlety absent from the paper&rsquo;s one-paragraph description: collapsing axis \(i\) can turn a surviving box into a slab of an axis processed earlier, so the implementation repeats the sweep until no slabs remain (each extra pass removes at least one box; see Section 4.1).</p>
+
+<h2>Step 2: the weighted-median cut</h2>
+<p>For a \((d{-}2)\)-face orthogonal to axes \(i\) and \(j\), define its weight as \(2^{(i+j)/d}\in(1,4]\). The cell is cut by the hyperplane \(x_1=m\) where \(m\) is the <i>weighted median</i> of the first coordinates of the \((d{-}2)\)-faces orthogonal to axis 1 that intersect \(\Gamma\). Then the axes are renumbered cyclically, \((1,2,\dots,d)\mapsto(d,1,\dots,d-1)\): the cut axis rotates through the dimensions exactly as in a \(k\)-d tree.</p>
+<p>Why these weights? Let \(N\) denote the total weight of all \((d{-}2)\)-faces intersecting the cell. After one cut-plus-renumbering:</p>
+<ul>
+<li>a face orthogonal to axes \(i,j\neq 1\) keeps its coordinates but its weight drops from \(2^{(i+j)/d}\) to \(2^{(i-1+j-1)/d}\): factor \(2^{-2/d}\);</li>
+<li>a face orthogonal to axes \(1,j\) sees its weight <i>rise</i> by \(2^{(d-2)/d}\) under renumbering, but the median cut halves the total weight of such faces present in each open subcell: net factor \(2^{(d-2)/d}/2=2^{-2/d}\).</li>
+</ul>
+<p>Hence \(N\) drops by the factor \(2^{2/d}\) in <i>each</i> subcell.</p>
+
+<h2>Analysis</h2>
+<p>Writing \(T(n,N)\) for the time on inputs with \(n\) boxes and total face weight \(N\), simplification gives \(T(n,N)\le T(\Oh(N),N)+\Oh(n)\)&mdash;every surviving box owns a \((d{-}2)\)-face of weight more than 1, so \(n=\Oh(N)\) after simplification&mdash;and cutting gives \(T(n,N)\le 2\,T(n,N/2^{2/d})+\Oh(n)\). Combining, with \(T(N)=T(cN,N)\):</p>
+<div class="eq">\[T(N)\;\le\; 2\,T\!\bigl(N/2^{2/d}\bigr)+\Oh(N).\tag{3}\]</div>
+<p>The recursion tree has \(2^k\) nodes at level \(k\) and reaches constant size at level \(k^\ast=\tfrac d2\log_2 N\), so it has \(\Theta(N^{d/2})\) leaves; for \(d\ge 3\) the level costs \(2^k\cdot \Oh(N/2^{2k/d})\) grow geometrically (ratio \(2^{1-2/d}&gt;1\)), the leaves dominate, and \(T(N)=\Oh(N^{d/2})\). Since each box has at most \(4\binom d2\) faces of weight at most 4, \(N=\Theta(d^2 n)\) and the bound is \(\Oh(n^{d/2})\) for constant \(d\ge3\). For \(d=2\) the two terms of (3) balance and all \(\Oh(\log N)\) levels cost \(\Oh(N)\): \(\Oh(n\log n)\).</p>
+
+<h1 data-num="3" data-title="The O(n^{d/3} polylog n) orthant algorithm">The \(\Oh(n^{d/3}\operatorname{polylog} n)\) orthant algorithm</h1>
+
+<p class="opening">For the hypervolume indicator all boxes are grounded orthants, and Chan&rsquo;s Section&nbsp;4.2 improves the exponent to \(d/3\) by strengthening the simplification step: besides slabs, it also eliminates all boxes that are <i>2-sided orthants</i> relative to the cell&mdash;boxes spanning \(\Gamma\) in all but two dimensions. After this, every surviving box fails to span \(\Gamma\) in at least <i>three</i> dimensions, i.e.&nbsp;has a \((d{-}3)\)-face intersecting \(\Gamma\); cutting at weighted medians of \((d{-}3)\)-faces (weight \(2^{(i+j+k)/d}\) for a face orthogonal to axes \(i,j,k\), with the same cyclic renumbering) makes the total face weight decay by \(2^{3/d}\) per level, and the recursion tree shrinks from \(\Theta(N^{d/2})\) to \(\Theta(N^{d/3})\) leaves.</p>
+<p>The price is that 2-sided orthants cannot be eliminated by re-coordination. Chan&rsquo;s <i>functional approach</i> absorbs them into the integrand instead.</p>
+
+<h2>Basic functions and staircase absorption</h2>
+
+<div class="lemma"><div class="lemma-head">Definition 1 &nbsp;<span class="lemma-name">Chan [4, Def.&nbsp;4.2], adapted</span></div>
+<p>A <i>basic function</i> is a finite sum of terms</p>
+<div class="eq">\[c\cdot [E(x)]\cdot h_1(x_1)\cdots h_d(x_d),\]</div>
+<p>where \(c\in\R\), each <i>density</i> \(h_i\) is a univariate step function, and the <i>basic predicate</i> \(E\) is a conjunction of \(\Oh(d^2)\) conditions of the form \(x_j\le f(x_i)\) or \(x_j\ge f(x_i)\) with \(f\) a monotone step function. Its <i>complexity</i> is the total number of pieces of all functions involved.</p></div>
+
+<p>An orthant is given by its vertex \(v\) and a sign per axis: the constraint on axis \(k\) is \(x_k\ge v_k\) or \(x_k\le v_k\). A constraint is <i>active</i> in the cell \(\Gamma\) if its hyperplane actually cuts \(\Gamma\). The recursion maintains a cell \(\Gamma\), a list \(\bar B\) of surviving orthants, and a basic function \(F\), and computes \(\int_{\Gamma\setminus\bigcup\bar B} F(x)\,dx\); initially \(F\equiv 1\). The simplification events are:</p>
+<ul>
+<li><b>Cover.</b> An orthant with no active constraint covers \(\Gamma\): the node contributes \(0\).</li>
+<li><b>Slabs.</b> An orthant with one active constraint is a halfspace; its complement chops the cell from one side: \(\Gamma.\mathrm{hi}_i\leftarrow\min(\Gamma.\mathrm{hi}_i,v_i)\) for a \(\ge\)-constraint, \(\Gamma.\mathrm{lo}_i\leftarrow\max(\Gamma.\mathrm{lo}_i,v_i)\) for a \(\le\)-constraint; opposing slabs that cross empty the cell. (For orthants no coordinate collapsing is needed&mdash;restricted to a cell, a slab is always one-sided.)</li>
+<li><b>2-sided orthants.</b> The orthants active exactly in dimensions \(\{i,j\}\) are quadrants in the \((i,j)\)-plane, in four orientation classes. The complement of the union of each class is a single monotone step condition (Figure 2 shows the \((\ge,\ge)\) class):
+<div class="tablewrap"><table class="data">
+<thead><tr><th>class</th><th>covered iff</th><th>complement</th><th>shape of \(f\)</th></tr></thead>
+<tbody>
+<tr><td>\((\ge,\ge)\)</td><td>\(x_j\ge\min\{b_t: a_t\le x_i\}\)</td><td>\(x_j\le f(x_i)\)</td><td>decreasing</td></tr>
+<tr><td>\((\le,\le)\)</td><td>\(x_j\le\max\{b_t: a_t\ge x_i\}\)</td><td>\(x_j\ge f(x_i)\)</td><td>decreasing</td></tr>
+<tr><td>\((\ge,\le)\)</td><td>\(x_j\le\max\{b_t: a_t\le x_i\}\)</td><td>\(x_j\ge f(x_i)\)</td><td>increasing</td></tr>
+<tr><td>\((\le,\ge)\)</td><td>\(x_j\ge\min\{b_t: a_t\ge x_i\}\)</td><td>\(x_j\le f(x_i)\)</td><td>increasing</td></tr>
+</tbody></table></div>
+These four staircases are exactly the four monotone boundary functions \(f^-,g^-,f^+,g^+\) of Chan&rsquo;s Section&nbsp;4.1. Absorption multiplies the class&rsquo;s condition into every term of \(F\); two conditions of the same pair, sense, and monotonicity class merge by a pointwise \(\min\)/\(\max\), so the predicate size stays \(\Oh(d^2)\).</li>
+</ul>
+
+<figure class="figure tikz-embed">
+<svg version='1.1' xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' width='141.904827pt' height='105.837928pt' viewBox='-70.007476 -70.007479 141.904827 105.837928'>
+<defs>
+<path id='g4-40' d='M2.475716-5.230386C1.150685-4.29589 .801993-2.817435 .801993-1.750436C.801993-.767123 1.094894 .760149 2.475716 1.736488C2.531507 1.736488 2.615193 1.736488 2.615193 1.652802C2.615193 1.610959 2.594271 1.597011 2.545455 1.548194C1.617933 .711333 1.276214-.474222 1.276214-1.743462C1.276214-3.626401 1.994521-4.546949 2.566376-5.063014C2.594271-5.090909 2.615193-5.111831 2.615193-5.1467C2.615193-5.230386 2.531507-5.230386 2.475716-5.230386Z'/>
+<path id='g4-41' d='M.627646-5.230386C.578829-5.230386 .495143-5.230386 .495143-5.1467C.495143-5.111831 .516065-5.090909 .557908-5.042092C1.157659-4.491158 1.827148-3.549689 1.827148-1.750436C1.827148-.292902 1.373848 .808966 .620672 1.492403C.502117 1.610959 .495143 1.617933 .495143 1.652802S.516065 1.736488 .585803 1.736488C.669489 1.736488 1.332005 1.276214 1.792279 .404483C2.099128-.174346 2.30137-.927522 2.30137-1.743462C2.30137-2.726775 2.008468-4.254047 .627646-5.230386Z'/>
+<path id='g5-49' d='M1.982565-3.16812C1.982565-3.317559 1.967621-3.317559 1.803238-3.317559C1.449564-2.998755 .896638-2.998755 .797011-2.998755H.712329V-2.779577H.797011C.911582-2.779577 1.235367-2.794521 1.524284-2.919054V-.428394C1.524284-.273973 1.524284-.219178 .996264-.219178H.747198V0C1.021171-.019925 1.464508-.019925 1.753425-.019925S2.485679-.019925 2.759651 0V-.219178H2.510585C1.982565-.219178 1.982565-.273973 1.982565-.428394V-3.16812Z'/>
+<path id='g5-50' d='M2.933998-.961395H2.724782C2.709838-.86675 2.660025-.557908 2.580324-.508095C2.540473-.478207 2.122042-.478207 2.047323-.478207H1.070984C1.399751-.722291 1.768369-1.001245 2.067248-1.200498C2.515567-1.50934 2.933998-1.798257 2.933998-2.326276C2.933998-2.963885 2.331258-3.317559 1.618929-3.317559C.946451-3.317559 .4533-2.929016 .4533-2.440847C.4533-2.181818 .672478-2.136986 .742217-2.136986C.876712-2.136986 1.036115-2.22665 1.036115-2.430884C1.036115-2.610212 .9066-2.709838 .752179-2.724782C.891656-2.948941 1.180573-3.098381 1.514321-3.098381C1.997509-3.098381 2.400996-2.809465 2.400996-2.321295C2.400996-1.902864 2.11208-1.58406 1.728518-1.260274L.513076-.229141C.463263-.184309 .458281-.184309 .4533-.14944V0H2.769614L2.933998-.961395Z'/>
+<path id='g5-51' d='M1.643836-1.648817C2.102117-1.648817 2.405978-1.364882 2.405978-.871731C2.405978-.363636 2.092154-.094645 1.648817-.094645C1.594022-.094645 1.001245-.094645 .747198-.353674C.951432-.383562 1.011208-.537983 1.011208-.657534C1.011208-.841843 .871731-.961395 .707347-.961395C.547945-.961395 .398506-.856787 .398506-.647572C.398506-.129514 .986301 .109589 1.663761 .109589C2.480697 .109589 2.988792-.383562 2.988792-.86675C2.988792-1.275218 2.625156-1.62391 2.057285-1.753425C2.655044-1.947696 2.814446-2.326276 2.814446-2.60523C2.814446-3.013699 2.306351-3.317559 1.678705-3.317559C1.066002-3.317559 .572852-3.058531 .572852-2.610212C.572852-2.37609 .762142-2.316314 .856787-2.316314C1.001245-2.316314 1.140722-2.420922 1.140722-2.600249C1.140722-2.714819 1.080946-2.854296 .901619-2.884184C1.115816-3.113325 1.559153-3.128269 1.663761-3.128269C2.027397-3.128269 2.286426-2.94396 2.286426-2.60523C2.286426-2.316314 2.097136-1.863014 1.574097-1.833126C1.43462-1.828144 1.414695-1.823163 1.285181-1.818182C1.230386-1.8132 1.175592-1.808219 1.175592-1.733499C1.175592-1.648817 1.225405-1.648817 1.315068-1.648817H1.643836Z'/>
+<path id='g3-59' d='M1.471482-.111582C1.471482 .27198 1.401743 .718306 .927522 1.164633C.899626 1.192528 .878705 1.21345 .878705 1.248319C.878705 1.297136 .934496 1.345953 .976339 1.345953C1.073973 1.345953 1.66675 .788045 1.66675-.041843C1.66675-.474222 1.499377-.801993 1.17858-.801993C.948443-.801993 .781071-.620672 .781071-.404483C.781071-.18132 .941469 0 1.185554 0C1.352927 0 1.464508-.111582 1.471482-.111582Z'/>
+<path id='g3-97' d='M2.942964-2.66401C2.796513-2.894147 2.559402-3.075467 2.224658-3.075467C1.332005-3.075467 .425405-2.092154 .425405-1.08792C.425405-.411457 .878705 .069738 1.478456 .069738C1.855044 .069738 2.189788-.146451 2.468742-.418431C2.601245 0 3.005729 .069738 3.187049 .069738C3.438107 .069738 3.612453-.083686 3.737983-.299875C3.891407-.571856 3.982067-.969365 3.982067-.99726C3.982067-1.08792 3.891407-1.08792 3.870486-1.08792C3.772852-1.08792 3.765878-1.060025 3.717061-.871731C3.633375-.536986 3.500872-.125529 3.20797-.125529C3.02665-.125529 2.977833-.278954 2.977833-.467248C2.977833-.585803 3.033624-.836862 3.082441-1.018182C3.131258-1.206476 3.200996-1.492403 3.235866-1.645828L3.375342-2.175841C3.417186-2.357161 3.500872-2.684932 3.500872-2.719801C3.500872-2.873225 3.375342-2.942964 3.263761-2.942964C3.145205-2.942964 2.984807-2.859278 2.942964-2.66401ZM2.496638-.871731C2.447821-.676463 2.294396-.536986 2.140971-.404483C2.078207-.348692 1.799253-.125529 1.499377-.125529C1.241345-.125529 .990286-.306849 .990286-.801993C.990286-1.171606 1.192528-1.93873 1.352927-2.217684C1.673724-2.775592 2.02939-2.880199 2.224658-2.880199C2.712827-2.880199 2.84533-2.350187 2.84533-2.273474C2.84533-2.245579 2.831382-2.196762 2.824408-2.175841L2.496638-.871731Z'/>
+<path id='g3-98' d='M1.841096-4.630635C1.84807-4.644583 1.868991-4.735243 1.868991-4.742217C1.868991-4.777086 1.841096-4.839851 1.75741-4.839851C1.617933-4.839851 1.039103-4.78406 .864757-4.770112C.808966-4.763138 .711333-4.756164 .711333-4.609714C.711333-4.51208 .808966-4.51208 .892653-4.51208C1.227397-4.51208 1.227397-4.463263 1.227397-4.407472C1.227397-4.358655 1.157659-4.079701 1.115816-3.919303L.955417-3.277709C.892653-3.040598 .509091-1.513325 .495143-1.422665C.460274-1.255293 .460274-1.164633 .460274-1.080946C.460274-.376588 .9066 .069738 1.48543 .069738C2.357161 .069738 3.284682-.878705 3.284682-1.910834C3.284682-2.726775 2.719801-3.075467 2.238605-3.075467C1.875965-3.075467 1.569116-2.873225 1.3599-2.691905L1.841096-4.630635ZM1.492403-.125529C1.150685-.125529 .955417-.425405 .955417-.836862C.955417-1.094894 1.018182-1.332005 1.21345-2.12005C1.255293-2.252553 1.255293-2.266501 1.387796-2.419925C1.652802-2.726775 1.966625-2.880199 2.217684-2.880199C2.489664-2.880199 2.726775-2.677958 2.726775-2.203736C2.726775-1.917808 2.57335-1.206476 2.364134-.801993C2.196762-.460274 1.84807-.125529 1.492403-.125529Z'/>
+<path id='g2-40' d='M3.057534 2.133998C3.057534 2.089166 3.030635 2.062267 2.976837 1.999502C1.820174 .941469 1.470486-.672478 1.470486-2.241594C1.470486-3.631382 1.739477-5.317061 3.003736-6.518555C3.039601-6.554421 3.057534-6.58132 3.057534-6.626152C3.057534-6.688917 3.012702-6.724782 2.949938-6.724782C2.842341-6.724782 2.035367-6.079203 1.551183-5.101868C1.120797-4.241096 .905604-3.317559 .905604-2.25056C.905604-1.604981 .986301-.582814 1.479452 .475218C2.008468 1.578082 2.842341 2.232628 2.949938 2.232628C3.012702 2.232628 3.057534 2.196762 3.057534 2.133998Z'/>
+<path id='g2-41' d='M2.67198-2.25056C2.67198-2.985803 2.564384-3.972105 2.098132-4.967372C1.569116-6.070237 .735243-6.724782 .627646-6.724782C.537983-6.724782 .52005-6.653051 .52005-6.626152C.52005-6.58132 .537983-6.554421 .600747-6.491656C1.120797-6.025405 2.107098-4.805978 2.107098-2.25056C2.107098-.968369 1.873973 .81594 .573848 2.026401C.555915 2.0533 .52005 2.089166 .52005 2.133998C.52005 2.160897 .537983 2.232628 .627646 2.232628C.735243 2.232628 1.542217 1.587049 2.026401 .609714C2.456787-.251059 2.67198-1.174595 2.67198-2.25056Z'/>
+<path id='g2-99' d='M3.263761-3.523786C3.075467-3.48792 2.896139-3.362391 2.896139-3.102366C2.896139-2.86924 3.075467-2.689913 3.308593-2.689913S3.730012-2.842341 3.730012-3.120299C3.730012-3.676214 3.102366-4.016936 2.313325-4.016936C1.165629-4.016936 .304857-3.057534 .304857-1.936737C.304857-.780075 1.23736 .09863 2.295392 .09863C3.541719 .09863 3.828643-.986301 3.828643-1.066999C3.828643-1.174595 3.730012-1.174595 3.703113-1.174595C3.604483-1.174595 3.604483-1.156663 3.550685-1.004234C3.344458-.385554 2.842341-.152428 2.385056-.152428C1.811208-.152428 1.075965-.61868 1.075965-1.945704C1.075965-3.344458 1.793275-3.765878 2.331258-3.765878C2.447821-3.765878 2.932005-3.747945 3.263761-3.523786Z'/>
+<path id='g2-100' d='M3.48792-1.075965C3.48792-.91457 3.48792-.887671 3.353425-.699377C3.075467-.29589 2.663014-.125529 2.304359-.125529C1.918804-.125529 1.560149-.340722 1.327024-.71731C1.093898-1.102864 1.075965-1.63188 1.075965-1.918804C1.075965-2.340224 1.129763-2.815442 1.362889-3.174097C1.560149-3.461021 1.927771-3.738979 2.402989-3.738979C2.779577-3.738979 3.138232-3.550685 3.380324-3.209963C3.48792-3.066501 3.48792-3.057534 3.48792-2.887173V-1.075965ZM3.514819-3.434122C3.469988-3.48792 3.066501-3.963138 2.367123-3.963138C1.264259-3.963138 .304857-3.084433 .304857-1.927771C.304857-.806974 1.201494 .09863 2.268493 .09863C2.923039 .09863 3.326526-.286924 3.48792-.475218V.09863L4.841843 0V-.277958C4.23213-.277958 4.151432-.340722 4.151432-.780075V-6.222665L2.824408-6.124035V-5.846077C3.434122-5.846077 3.514819-5.783313 3.514819-5.34396V-3.434122Z'/>
+<path id='g2-101' d='M3.58655-2.0533C3.783811-2.0533 3.828643-2.0533 3.828643-2.241594C3.828643-3.165131 3.326526-4.016936 2.178829-4.016936C1.102864-4.016936 .260025-3.084433 .260025-1.972603C.260025-.798007 1.201494 .09863 2.295392 .09863S3.828643-.860772 3.828643-1.066999C3.828643-1.129763 3.783811-1.183562 3.703113-1.183562C3.61345-1.183562 3.58655-1.120797 3.577584-1.084932C3.272727-.170361 2.47472-.152428 2.340224-.152428C1.909838-.152428 1.542217-.394521 1.33599-.699377C1.0401-1.13873 1.031133-1.676712 1.031133-2.0533H3.58655ZM1.0401-2.268493C1.120797-3.649315 1.927771-3.792777 2.178829-3.792777C2.67198-3.792777 3.209963-3.416189 3.218929-2.268493H1.0401Z'/>
+<path id='g2-111' d='M4.339726-1.909838C4.339726-3.084433 3.407223-4.016936 2.304359-4.016936C1.165629-4.016936 .260025-3.057534 .260025-1.909838C.260025-.789041 1.192528 .09863 2.295392 .09863C3.434122 .09863 4.339726-.806974 4.339726-1.909838ZM2.304359-.152428C1.85604-.152428 1.479452-.376588 1.273225-.726276C1.0401-1.102864 1.031133-1.578082 1.031133-1.990535C1.031133-2.322291 1.031133-2.833375 1.255293-3.200996C1.524284-3.658281 1.972603-3.792777 2.295392-3.792777C2.806476-3.792777 3.174097-3.505853 3.353425-3.200996C3.559651-2.824408 3.568618-2.367123 3.568618-1.990535C3.568618-1.65878 3.568618-1.13873 3.344458-.744209C3.0934-.331756 2.680946-.152428 2.304359-.152428Z'/>
+<path id='g2-114' d='M1.596015-2.0533C1.596015-2.420922 1.694645-3.738979 2.716812-3.738979V-3.730012C2.698879-3.721046 2.555417-3.61345 2.555417-3.398257C2.555417-3.156164 2.743711-3.003736 2.949938-3.003736C3.138232-3.003736 3.344458-3.138232 3.344458-3.407223C3.344458-3.694147 3.075467-3.963138 2.67198-3.963138C2.133998-3.963138 1.75741-3.58655 1.551183-3.030635H1.542217V-3.963138L.268991-3.864508V-3.58655C.878705-3.58655 .959402-3.523786 .959402-3.084433V-.690411C.959402-.277958 .860772-.277958 .268991-.277958V0C.744209-.017933 .860772-.026899 1.318057-.026899C1.676712-.026899 1.891905-.017933 2.456787 0V-.277958H2.27746C1.622914-.277958 1.596015-.376588 1.596015-.708344V-2.0533Z'/>
+<path id='g2-118' d='M1.613948-3.183064C1.587049-3.236862 1.569116-3.29066 1.569116-3.353425C1.569116-3.58655 1.891905-3.58655 2.062267-3.58655V-3.864508C1.676712-3.846575 1.470486-3.837609 1.075965-3.837609C.762142-3.837609 .502117-3.837609 .179328-3.864508V-3.58655C.600747-3.58655 .771108-3.58655 .905604-3.254795L2.214695-.071731C2.268493 .071731 2.340224 .09863 2.420922 .09863S2.57335 .080697 2.636115-.071731L3.855542-3.012702C4.043836-3.469988 4.357659-3.577584 4.671482-3.58655V-3.864508C4.402491-3.837609 3.999004-3.837609 3.981071-3.837609C3.730012-3.837609 3.452055-3.846575 3.200996-3.864508V-3.58655C3.461021-3.568618 3.61345-3.434122 3.61345-3.200996C3.61345-3.111333 3.604483-3.0934 3.568618-2.99477L2.636115-.735243L1.613948-3.183064Z'/>
+<path id='g1-60' d='M6.204732-4.545953C6.28543-4.581818 6.38406-4.635616 6.38406-4.752179C6.38406-4.850809 6.312329-4.94944 6.1868-4.94944C6.177833-4.94944 6.133001-4.94944 6.025405-4.895641L.950436-2.456787C.869738-2.420922 .771108-2.367123 .771108-2.25056C.771108-2.125031 .851806-2.080199 .950436-2.035367L6.007472 .394521C6.133001 .457285 6.168867 .457285 6.1868 .457285C6.330262 .457285 6.38406 .331756 6.38406 .268991C6.38406 .152428 6.321295 .116563 6.222665 .071731L1.407721-2.25056L6.204732-4.545953Z'/>
+<path id='g1-102' d='M3.353425-3.58655H4.160399C4.339726-3.58655 4.42939-3.58655 4.42939-3.747945C4.42939-3.864508 4.339726-3.864508 4.169365-3.864508H3.407223C3.505853-4.402491 3.631382-5.137733 3.747945-5.621918C3.828643-5.971606 4.043836-6.097136 4.223163-6.097136C4.276961-6.097136 4.483188-6.079203 4.635616-5.971606C4.456289-5.935741 4.196264-5.774346 4.196264-5.478456C4.196264-5.254296 4.366625-5.155666 4.536986-5.155666C4.779078-5.155666 5.030137-5.352927 5.030137-5.693649C5.030137-6.097136 4.635616-6.321295 4.214197-6.321295C3.81071-6.321295 3.407223-6.034371 3.218929-5.66675C3.021669-5.281196 2.958904-4.931507 2.77061-3.864508H2.125031C1.95467-3.864508 1.847073-3.864508 1.847073-3.703113C1.847073-3.58655 1.945704-3.58655 2.107098-3.58655H2.716812C2.465753-2.286426 2.15193-.493151 1.95467 .439352C1.847073 .932503 1.703611 1.613948 1.273225 1.613948C1.13873 1.613948 .959402 1.560149 .869738 1.488418C1.093898 1.452553 1.318057 1.264259 1.318057 .995268C1.318057 .771108 1.147696 .672478 .977335 .672478C.735243 .672478 .484184 .869738 .484184 1.210461C.484184 1.622914 .896638 1.838107 1.273225 1.838107C2.187796 1.838107 2.609215 .349689 2.752677-.42142L3.353425-3.58655Z'/>
+<path id='g1-120' d='M4.411457-3.622416C4.079701-3.559651 3.981071-3.272727 3.981071-3.138232C3.981071-2.96787 4.1066-2.815442 4.33076-2.815442C4.581818-2.815442 4.82391-3.030635 4.82391-3.344458C4.82391-3.756912 4.375592-3.963138 3.954172-3.963138C3.416189-3.963138 3.102366-3.48792 2.99477-3.299626C2.824408-3.738979 2.429888-3.963138 1.999502-3.963138C1.0401-3.963138 .52005-2.815442 .52005-2.582316C.52005-2.501619 .582814-2.47472 .645579-2.47472C.726276-2.47472 .753176-2.519552 .771108-2.57335C1.049066-3.461021 1.640847-3.738979 1.981569-3.738979C2.241594-3.738979 2.47472-3.568618 2.47472-3.147198C2.47472-2.824408 2.089166-1.389788 1.972603-.959402C1.900872-.681445 1.63188-.125529 1.13873-.125529C.959402-.125529 .771108-.188294 .681445-.242092C.923537-.286924 1.102864-.493151 1.102864-.726276C1.102864-.950436 .932503-1.049066 .762142-1.049066C.502117-1.049066 .268991-.824907 .268991-.52005C.268991-.080697 .753176 .09863 1.129763 .09863C1.649813 .09863 1.95467-.331756 2.089166-.573848C2.313325 .017933 2.842341 .09863 3.084433 .09863C4.052802 .09863 4.563885-1.066999 4.563885-1.282192C4.563885-1.327024 4.536986-1.389788 4.447323-1.389788C4.348692-1.389788 4.339726-1.353923 4.294894-1.219427C4.097634-.573848 3.577584-.125529 3.111333-.125529C2.851308-.125529 2.609215-.286924 2.609215-.71731C2.609215-.91457 2.734745-1.407721 2.815442-1.748443C2.851308-1.909838 3.0934-2.878207 3.111333-2.940971C3.218929-3.263761 3.48792-3.738979 3.945205-3.738979C4.1066-3.738979 4.276961-3.71208 4.411457-3.622416Z'/>
+<path id='g0-105' d='M2.080199-3.730012C2.080199-3.873474 1.972603-3.969116 1.835118-3.969116C1.673724-3.969116 1.500374-3.813699 1.500374-3.640349C1.500374-3.490909 1.60797-3.401245 1.739477-3.401245C1.93076-3.401245 2.080199-3.580573 2.080199-3.730012ZM1.721544-1.643836C1.745455-1.703611 1.799253-1.847073 1.823163-1.900872C1.841096-1.95467 1.865006-2.014446 1.865006-2.116065C1.865006-2.450809 1.566127-2.636115 1.267248-2.636115C.657534-2.636115 .364633-1.847073 .364633-1.715567C.364633-1.685679 .388543-1.63188 .472229-1.63188S.573848-1.667746 .591781-1.721544C.759153-2.30137 1.075965-2.438854 1.243337-2.438854C1.362889-2.438854 1.404732-2.361146 1.404732-2.223661C1.404732-2.10411 1.368867-2.014446 1.356912-1.972603L1.046077-1.207472C.974346-1.034122 .974346-1.022167 .896638-.818929C.818929-.639601 .789041-.561893 .789041-.460274C.789041-.155417 1.06401 .059776 1.392777 .059776C1.996513 .059776 2.295392-.729265 2.295392-.860772C2.295392-.872727 2.289415-.944458 2.181818-.944458C2.098132-.944458 2.092154-.91457 2.056289-.800996C1.960648-.496139 1.715567-.137484 1.41071-.137484C1.303113-.137484 1.249315-.209215 1.249315-.352677C1.249315-.472229 1.285181-.561893 1.362889-.747198L1.721544-1.643836Z'/>
+<path id='g0-106' d='M2.773599-3.730012C2.773599-3.90934 2.630137-3.969116 2.534496-3.969116C2.343213-3.969116 2.193773-3.783811 2.193773-3.640349C2.193773-3.514819 2.289415-3.401245 2.438854-3.401245C2.594271-3.401245 2.773599-3.550685 2.773599-3.730012ZM1.500374 .268991C1.3868 .71731 1.034122 1.022167 .687422 1.022167C.669489 1.022167 .502117 1.016189 .502117 .992279C.502117 .986301 .52005 .974346 .52005 .968369C.609714 .896638 .651557 .800996 .651557 .711333C.651557 .52005 .496139 .478207 .412453 .478207C.251059 .478207 .071731 .609714 .071731 .830884C.071731 1.147696 .448319 1.219427 .6934 1.219427C1.093898 1.219427 1.811208 .992279 1.990535 .274969L2.528518-1.865006C2.540473-1.924782 2.558406-1.97858 2.558406-2.062267C2.558406-2.397011 2.259527-2.636115 1.876961-2.636115C1.201494-2.636115 .783064-1.829141 .783064-1.715567C.783064-1.679701 .806974-1.63188 .89066-1.63188S.980324-1.655791 1.022167-1.739477C1.195517-2.12802 1.530262-2.438854 1.859029-2.438854C2.038356-2.438854 2.080199-2.289415 2.080199-2.139975C2.080199-2.062267 2.068244-1.97858 2.062267-1.960648L1.500374 .268991Z'/>
+</defs>
+<g id='page1'>
+<g stroke-miterlimit='10' transform='translate(-54.040968,24.133392)scale(0.996264,-0.996264)'>
+<g fill='#000' stroke='#000'>
+<g stroke-width='0.4'>
+<g stroke-width='0.8'>
+<path d='M0 0V93.8939H125.1919V0ZM125.1919 93.8939' fill='none'/>
+</g>
+<g fill='#e1e1e1' stroke='#e1e1e1'>
+<path d='M25.03798 56.33594V93.8939H125.1919V56.33594ZM125.1919 93.8939' stroke='none'/>
+</g>
+<g fill='#e1e1e1' stroke='#e1e1e1'>
+<path d='M56.33594 34.42795V93.8939H125.1919V34.42795ZM125.1919 93.8939' stroke='none'/>
+</g>
+<g fill='#e1e1e1' stroke='#e1e1e1'>
+<path d='M93.8939 15.64896V93.8939H125.1919V15.64896ZM125.1919 93.8939' stroke='none'/>
+</g>
+<g stroke-width='1.2'>
+<path d='M0 93.8939' fill='none'/>
+</g>
+<g stroke-width='1.2'>
+<g fill='#4c4c4c' stroke='#4c4c4c'>
+<path d='M0 93.8939H25.03798V56.33594H56.33594V34.42795H93.8939V15.64896H125.1919' fill='none'/>
+</g>
+</g>
+<path d='M26.29015 56.33594C26.29015 57.0275 25.72954 57.5881 25.03798 57.5881S23.78581 57.0275 23.78581 56.33594S24.34642 55.08377 25.03798 55.08377S26.29015 55.64438 26.29015 56.33594ZM25.03798 56.33594' stroke='none'/>
+<g transform='translate(28.57095,47.55296)'>
+<g stroke='none' transform='scale(-1.00375,1.00375)translate(-54.040968,24.133392)scale(-1,-1)'>
+<g fill='#000'>
+<g stroke='none'>
+<use x='-54.040968' y='24.133392' xlink:href='#g4-40'/>
+<use x='-50.927625' y='24.133392' xlink:href='#g3-97'/>
+<use x='-46.606181' y='25.129656' xlink:href='#g5-49'/>
+<use x='-42.71793' y='24.133392' xlink:href='#g3-59'/>
+<use x='-38.991153' y='24.133392' xlink:href='#g3-98'/>
+<use x='-35.487616' y='25.129656' xlink:href='#g5-49'/>
+<use x='-31.599365' y='24.133392' xlink:href='#g4-41'/>
+</g>
+</g>
+</g>
+</g>
+<path d='M57.5881 34.42795C57.5881 35.1195 57.0275 35.68011 56.33594 35.68011S55.08377 35.1195 55.08377 34.42795C55.08377 33.73639 55.64438 33.17578 56.33594 33.17578S57.5881 33.73639 57.5881 34.42795ZM56.33594 34.42795' stroke='none'/>
+<g transform='translate(59.86891,25.64497)'>
+<g stroke='none' transform='scale(-1.00375,1.00375)translate(-54.040968,24.133392)scale(-1,-1)'>
+<g fill='#000'>
+<g stroke='none'>
+<use x='-54.040968' y='24.133392' xlink:href='#g4-40'/>
+<use x='-50.927625' y='24.133392' xlink:href='#g3-97'/>
+<use x='-46.606181' y='25.129656' xlink:href='#g5-50'/>
+<use x='-42.71793' y='24.133392' xlink:href='#g3-59'/>
+<use x='-38.991153' y='24.133392' xlink:href='#g3-98'/>
+<use x='-35.487616' y='25.129656' xlink:href='#g5-50'/>
+<use x='-31.599365' y='24.133392' xlink:href='#g4-41'/>
+</g>
+</g>
+</g>
+</g>
+<path d='M95.14607 15.64896C95.14607 16.34052 94.58546 16.90112 93.8939 16.90112C93.20235 16.90112 92.64174 16.34052 92.64174 15.64896S93.20235 14.39679 93.8939 14.39679C94.58546 14.39679 95.14607 14.9574 95.14607 15.64896ZM93.8939 15.64896' stroke='none'/>
+<g transform='translate(97.42688,6.86598)'>
+<g stroke='none' transform='scale(-1.00375,1.00375)translate(-54.040968,24.133392)scale(-1,-1)'>
+<g fill='#000'>
+<g stroke='none'>
+<use x='-54.040968' y='24.133392' xlink:href='#g4-40'/>
+<use x='-50.927625' y='24.133392' xlink:href='#g3-97'/>
+<use x='-46.606181' y='25.129656' xlink:href='#g5-51'/>
+<use x='-42.71793' y='24.133392' xlink:href='#g3-59'/>
+<use x='-38.991153' y='24.133392' xlink:href='#g3-98'/>
+<use x='-35.487616' y='25.129656' xlink:href='#g5-51'/>
+<use x='-31.599365' y='24.133392' xlink:href='#g4-41'/>
+</g>
+</g>
+</g>
+</g>
+<g transform='translate(81.97887,65.73091)'>
+<g stroke='none' transform='scale(-1.00375,1.00375)translate(-54.040968,24.133392)scale(-1,-1)'>
+<g fill='#000'>
+<g stroke='none'>
+<use x='-54.040968' y='24.133392' xlink:href='#g2-99'/>
+<use x='-49.945243' y='24.133392' xlink:href='#g2-111'/>
+<use x='-45.593535' y='24.133392' xlink:href='#g2-118'/>
+<use x='-40.985845' y='24.133392' xlink:href='#g2-101'/>
+<use x='-36.886657' y='24.133392' xlink:href='#g2-114'/>
+<use x='-33.282135' y='24.133392' xlink:href='#g2-101'/>
+<use x='-29.182947' y='24.133392' xlink:href='#g2-100'/>
+</g>
+</g>
+</g>
+</g>
+<g transform='translate(13.1412,15.27675)'>
+<g stroke='none' transform='scale(-1.00375,1.00375)translate(-54.040968,24.133392)scale(-1,-1)'>
+<g fill='#000'>
+<g stroke='none'>
+<use x='-54.040968' y='24.133392' xlink:href='#g1-120'/>
+<use x='-48.817511' y='25.129641' xlink:href='#g0-106'/>
+<use x='-42.354914' y='24.133392' xlink:href='#g1-60'/>
+<use x='-32.627567' y='24.133392' xlink:href='#g1-102'/>
+<use x='-27.179264' y='24.133392' xlink:href='#g2-40'/>
+<use x='-23.595504' y='24.133392' xlink:href='#g1-120'/>
+<use x='-18.372048' y='25.129641' xlink:href='#g0-105'/>
+<use x='-15.21029' y='24.133392' xlink:href='#g2-41'/>
+</g>
+</g>
+</g>
+</g>
+<g transform='translate(58.38762,-7.40796)'>
+<g stroke='none' transform='scale(-1.00375,1.00375)translate(-54.040968,24.133392)scale(-1,-1)'>
+<g fill='#000'>
+<g stroke='none'>
+<use x='-54.040968' y='24.133392' xlink:href='#g1-120'/>
+<use x='-48.817511' y='25.129641' xlink:href='#g0-105'/>
+</g>
+</g>
+</g>
+</g>
+<g transform='translate(-12.6934,46.09279)'>
+<g stroke='none' transform='scale(-1.00375,1.00375)translate(-54.040968,24.133392)scale(-1,-1)'>
+<g fill='#000'>
+<g stroke='none'>
+<use x='-54.040968' y='24.133392' xlink:href='#g1-120'/>
+<use x='-48.817511' y='25.129641' xlink:href='#g0-106'/>
+</g>
+</g>
+</g>
+</g>
+</g>
+</g>
+</g>
+</g>
+</svg>
+<figcaption><b>Figure 2.</b> Absorbing 2-sided orthants of a pair \((i,j)\). The union of the quadrants (shaded) is bounded by a staircase; the complement is described by the single condition \(x_j&lt;f(x_i)\) with \(f\) monotone decreasing&mdash;one condition per orientation class per axis pair, regardless of how many boxes were absorbed; shown is the \((\ge,\ge)\) class, the other three mirror it.</figcaption>
+</figure>
+<h2>Symbolic integration (Lemma 4.4)</h2>
+<p>The engine underlying everything is one operation: integrate a basic-function term over one variable \(\lambda=x_e\) between a lower bound and an upper bound. Every condition touching axis \(e\) converts into a bound on \(\lambda\): \([\lambda\le f(x_i)]\) is directly an upper bound, while \([x_j\le f(\lambda)]\) becomes, for monotone \(f\), a bound through the <i>ray preimage</i> \(\{\lambda: f(\lambda)\ge x_j\}\), whose boundary is a monotone step function of \(x_j\). This yields upper bounds \(U_1,\dots,U_p\) and lower bounds \(V_1,\dots,V_q\), each either a constant or a monotone step function of a single other variable. Then, with \(h\) the density of axis \(e\) and \(H\) its antiderivative,</p>
+<div class="eq">\[\begin{aligned}&amp;\int h(\lambda)\prod_t[\lambda\le U_t]\prod_s[\lambda\ge V_s]\,d\lambda\\
+&amp;\qquad=\Bigl[\max_s V_s\le \min_t U_t\Bigr]\Bigl(H\bigl(\min_t U_t\bigr)-H\bigl(\max_s V_s\bigr)\Bigr).\end{aligned}\]</div>
+<p>The implementation performs a case split over which \(U_t\) attains the minimum and which \(V_s\) the maximum. Each guard \([U_t\le U_{t'}]\) is again expressible in the algebra: trivially true/false for constants, a univariate indicator folded into a density when both bounds depend on the same variable, and a new condition \(x_b\lessgtr\theta(x_a)\) with \(\theta\) a composed monotone step function otherwise. Finally \(H\circ(\text{step bound})\) is again a step function, so each case contributes two new basic-function terms (\(+H(U_t)\) and \(-H(V_s)\)): the class of basic functions is closed under integration, which is exactly Chan&rsquo;s Lemma&nbsp;4.4. Iterating over all \(d\) axes integrates \(F\) over a box; this is the recursion&rsquo;s base case (combined, for up to a constant number of leftover boxes, with inclusion&ndash;exclusion over their intersections, which are boxes).</p>
+<p>Two implementation points deserve emphasis:</p>
+<ul>
+<li><i>Ties are counted exactly once.</i> Bounds are step functions and therefore tie on sets of positive measure (plateaus). The case split uses a first-winner rule: candidate \(U_t\) wins iff \(U_t&lt;U_{t'}\) strictly for all \(t'&lt;t\) and \(U_t\le U_{t'}\) for \(t'&gt;t\). With both strict and non-strict guards available, the split partitions the domain up to measure zero.</li>
+<li><i>Plateau preimages are computed from pieces, never by point evaluation.</i> The preimage of a plateau value under a step function has positive measure; all ray preimages and cross-variable comparisons are computed exactly from piece values, and point evaluation of a step function is only ever applied to raw (Lebesgue) integration variables, where breakpoint behaviour is measure-zero. Everything else in the code may be (and is) deliberately sloppy on measure-zero sets, because every predicate is ultimately consumed by an integral.</li>
+</ul>
+
+<h2>Compression (Lemma 4.5)</h2>
+<p>Absorbing staircases makes \(F\)&rsquo;s complexity grow with the number of absorbed boxes, which would ruin the recurrence: the problem size passed down must be proportional to the number of <i>surviving</i> boxes. Chan&rsquo;s fix is to replace \(F\) by its average over the grid spanned by the coordinates of \(\bar B\). Let \(X_i\) be the \(x_i\)-coordinates appearing among the boxes of \(\bar B\) (plus the cell boundaries), and let \(\pi_i^-(x)\) and \(\pi_i^+(x)\) be the grid neighbours of \(x\) in \(X_i\). Define</p>
+<div class="eq">\[\begin{aligned}\tilde F(x)=\frac{1}{\prod_i\bigl(\pi_i^+(x_i)-\pi_i^-(x_i)\bigr)}\;\times\qquad\qquad\\[2pt]
+\int_{\pi_1^-(x_1)}^{\pi_1^+(x_1)}\!\!\!\cdots\!\!\int_{\pi_d^-(x_d)}^{\pi_d^+(x_d)}
+\!\!\!F(\lambda_1,\dots,\lambda_d)\,d\lambda_d\cdots d\lambda_1 .\end{aligned}\tag{4}\]</div>
+<p>By construction \(\tilde F\) is constant on every grid cell and integrates to the same value as \(F\) over it; since \(\bigcup\bar B\) is a union of grid cells, \(\int_{\Gamma\setminus\bigcup\bar B}\tilde F=\int_{\Gamma\setminus\bigcup\bar B}F\). Moreover&mdash;this is the point&mdash;every occurrence of \(x_i\) in (4) is filtered through \(\pi_i^\pm\), so every function in \(\tilde F\) has breakpoints only on the grid: the complexity of \(\tilde F\) is \(\Oh(|\bar B|)\) per function, with \(\Oh(1)\) terms (a constant depending on \(d\)).</p>
+<p>The implementation computes (4) with the engine of the previous subsection verbatim: it renames all variables of \(F\) to fresh integration variables \(\lambda_i\), integrates them out one by one with the <i>step-function bounds</i> \(\pi_i^-(x_i),\pi_i^+(x_i)\), and multiplies the reciprocal side lengths into the densities. A self-test verifies both the integral-preservation property and the on-grid-breakpoints property on random instances. An important soundness detail: all subsequent cuts and absorptions in the subtree use coordinates of boxes in \(\bar B\), which lie on the grid, so every region over which \(\tilde F\) is later integrated remains grid-aligned&mdash;the substitution is valid for the entire subtree, not just for the current node.</p>
+
+<h2>The recursion and its analysis</h2>
+<p>The driver mirrors Algorithm 1 with three changes: absorption handles covers, slabs, and 2-sided orthants (all cheap; run at every node); cuts use weighted medians of \((d{-}3)\)-face coordinates with weight \(2^{(i+j+k)/d}\) and cyclic renumbering, giving a per-level weight decay of \(2^{3/d}\) by the same argument as in Section 2.3; and compression, which multiplies the term count by an \(\Oh(1)\) factor, is <i>throttled</i>: it runs only every \(\approx\log_2(r^d)\) levels. Grouping \(\log_2(r^d)=d\log_2 r\) consecutive levels into one block, the face weight decays by \(r^3\) per block, the block has \(\Oh(r^d)\) subproblems, and one compression per block restores problem size \(\Oh(N)\), giving Chan&rsquo;s recurrence</p>
+<div class="eq">\[T(N)\;\le\;\Oh(r^d)\,T\!\bigl(N/r^3\bigr)+\Oh(r^d N).\tag{5}\]</div>
+<p>Choosing \(r=N^{\varepsilon}\) for a small constant \(\varepsilon&gt;0\) makes the block depth \(1/(3\varepsilon)=\Oh(1)\), so the \(\Oh(1)\) compression blowup multiplies into a constant and (5) solves to \(T(N)=\Oh(N^{d/3}\log^{\Oh(1)}N)\) for \(d\ge4\) [4]. (For \(d=3\) the exponent \(d/3=1\) is not interesting: the union of orthants then has linear complexity anyway.)</p>
+
+<h2>Scope</h2>
+<p>The implementation covers Chan&rsquo;s Section&nbsp;4.2 in full generality: orthants of arbitrary orientation, via the four staircase classes of Section 3.1 (the general entry point is <code>orthant_union_volume</code>; <code>hypervolume_dby3</code> is the grounded front end). The four classes are exactly the four monotone boundary functions of the union of \(B_{ij}\) in Chan&rsquo;s Section&nbsp;4.1 [4, Sec.&nbsp;4.1], and the term algebra treats them uniformly, so the generalization touches only the absorption front end, the slab handling (halfspaces now chop the cell from either side, and opposing slabs may empty it), the active-constraint tests, and the two-sided corners of the inclusion&ndash;exclusion base case. The paper&rsquo;s further results&mdash;the word-RAM speedups of its Section&nbsp;3 and the \(\Oh(n^{(d+1)/3})\) hypercube algorithm of its Section&nbsp;4.3&mdash;remain out of scope.</p>
+
+<h1 data-num="4">Complexity of the implementations as written</h1>
+
+<h2><code>chan_hypervolume.py</code> (Section-2 algorithm)</h2>
+<p><i>Node count.</i> The implementation performs the weighted-median cut exactly as analyzed, so the recursion tree has \(\Oh(N^{d/2})\) nodes with \(N=\Theta(d^2n)\); nothing is lost here.</p>
+<p><i>Per-node cost.</i> With \(m\) boxes at a node, clipping is \(\Oh(dm)\); one simplification sweep is \(\Oh(d^2m+m\log m)\) (the \(\log\) from sorting slab intervals); collecting cut candidates is \(\Oh(d^2 m)\); the weighted median is computed by sorting, \(\Oh(m\log m)\). The implementation re-sorts at every node instead of maintaining pre-sorted coordinate lists through the recursion, and this is precisely where it loses against the paper: summing level costs as in Section 2.3 gives</p>
+<div class="eq">\[\Oh\bigl(n^{d/2}(d^2+\log n)\bigr)\cdot d^{\Theta(d)}\qquad\text{for } d\ge 3,\tag{6}\]</div>
+<p>i.e.&nbsp;one extra \(\log n\) factor (and \(\Oh(n\log^2 n)\) for \(d=2\)). Recovering the paper&rsquo;s clean \(\Oh(n^{d/2})\) would require threading pre-sorted per-axis arrays through the recursion and a linear-time weighted median&mdash;both routine, neither affecting the exponent.</p>
+<p><i>A caveat made explicit.</i> The simplification sweep must be iterated because collapsing axis \(i\) can create new slabs on earlier axes. Each extra pass removes at least one box, so a node costs at most \(\Oh(d^2m^2)\) in a contrived worst case; across the tree this degrades the bound to at most \(\Oh(n^{d/2+1})\). We have never observed more than two passes (one productive, one confirming) in any experiment, and the standard analysis applies whenever the pass count is \(\Oh(1)\) amortized. <i>Space</i> is linear: the recursion is depth-first and box lists shrink geometrically along any root&ndash;leaf path.</p>
+
+<h2><code>chan_orthant_dby3.py</code> (Section-4.2 algorithm)</h2>
+<p><i>Node count.</i> Cuts follow the \((d{-}3)\)-face weighted-median rule exactly, so the tree has \(\Oh(N_{d-3}^{\,d/3})\) nodes, \(N_{d-3}=\Oh(d^3n)\)&mdash;this is the quantity the experiments in Section 5 measure directly.</p>
+<p><i>Per-node cost.</i> Absorption is \(\Oh(d^2 m\log m)\). The dominant cost is symbolic: integration and compression case-split each term into \(\Oh(pq)\) new terms per eliminated axis (\(p,q\) = numbers of upper/lower bounds, both \(\Oh(d)\) after per-pair condition merging), so a single compression or base-case integration multiplies term counts by a factor that is bounded for fixed \(d\) but grows like \(d^{\Theta(d)}\) across the \(d\) eliminated axes&mdash;Chan&rsquo;s innocuous-looking &ldquo;sum of \(\Oh(1)\) basic functions&rdquo;. Three measures keep this practical: terms are merged by structural identity (summing coefficients), dead terms are pruned, and&mdash;most importantly&mdash;all functions are restricted to the current cell after every operation, which trivializes most conditions deep in the tree, where cells are small. Compression restores per-function complexity to \(\Oh(|\bar B|)\) and is doubly throttled: at least \(\max(1,\lceil 0.1\,d\log_2 n\rceil)\) levels between firings (the block schedule of Section 3.3 with \(r=n^{0.1}\)), <i>and</i> the representation must actually exceed a constant multiple of its post-compression size \(\Oh(d^2|\bar B|)\). The second condition matters in practice: for grounded orthants, absorption only adds or merges conditions and never multiplies the number of terms, so compression&mdash;the sole source of term blowup&mdash;should fire only when the guarantee it provides is actually needed. (An earlier version of the implementation compressed on the level schedule alone; on one \(d{=}3\), \(n{=}16\) instance this compounded the per-compression blowup into \(9.5\cdot10^4\) terms and a \(150\)-second running time. With the size condition the same instance takes \(0.01\) seconds.)</p>
+<p>The implementation therefore preserves the \(\Theta(N^{d/3})\) recursion-tree bound while its per-node symbolic overhead contributes polylogarithmic factors in \(n\) with constants that grow steeply in \(d\). This matches the character of the theoretical result: neither Bringmann&rsquo;s \(n^{(d+2)/3}\) algorithm nor Chan&rsquo;s \(n^{d/3}\) algorithm was designed for practical constant factors, and the experiments below confirm that the \(d/2\)-implementation dominates in wall-clock time at all reachable input sizes. The value of the \(d/3\)-implementation is as an executable, exhaustively tested reference for the strongest known hypervolume algorithm.</p>
+
+<h1 data-num="5">Validation and experiments</h1>
+
+<h2>Correctness</h2>
+<p class="opening">Both modules ship with self-tests (run the files directly). The layered oracle strategy is worth recording, since the symbolic engine is the kind of code that is easy to get subtly wrong:</p>
+<ol>
+<li><i>Property tests</i> for step-function operations, ray preimages (including exact plateau levels), and bound comparisons, checked pointwise against direct evaluation at thousands of random samples.</li>
+<li><i>Exact integration oracle</i>: because every function involved is a step function, \(\int F\) over a box can be computed exactly by enumerating the grid of all breakpoints and sampling midpoints; the symbolic engine is required to match to \(10^{-8}\) relative error on random basic functions in \(d\le4\) (typical agreement is \(10^{-12}\) or better).</li>
+<li><i>Compression oracle</i>: integral preservation of (4) over the complement of random orthant unions, plus the structural on-grid-breakpoints assertion.</li>
+<li><i>End-to-end</i>: both algorithms against \(\Oh(2^n)\) inclusion&ndash;exclusion for \(d\in\{3,4,5\}\), against each other on larger random fronts, with compression enabled and disabled, and on coordinate-tie-heavy integer grids (\(10\) points on a \(4^d\) grid), which exercise every degenerate branch of the tie handling. The \(d/2\)-implementation is additionally validated on arbitrary (non-orthant) box unions and on spherical fronts against an independent coordinate-compression enumerator. The orthant module is further checked on random <i>mixed-orientation</i> orthant unions in \(d\in\{3,4,5\}\) (property tests of all four staircase classes, inclusion&ndash;exclusion on small instances, and the \(d/2\)-implementation on clipped boxes for up to \(n=80\)), including forced compression.</li>
+</ol>
+<p>All checks pass with relative errors at machine-precision level (worst observed: \(4\cdot10^{-14}\)).</p>
+
+<h2>Scaling</h2>
+<p>Test instances are <i>spherical fronts</i>: \(n\) points drawn uniformly by direction on the positive unit sphere, so that no point dominates another and nothing can be discarded a priori&mdash;the standard hard case for hypervolume algorithms. Table 1 shows the wall-clock behaviour of the \(d/2\)-implementation; empirical exponents are least-squares slopes in log&ndash;log scale. Real instances sit far below the worst case because simplification eliminates boxes rapidly.</p>
+
+<p class="tabcap"><b>Table 1.</b> <code>chan_hypervolume.py</code> on spherical fronts (Python 3.13, one core). Exponents are empirical fits over the stated \(n\)-ranges; theoretical worst-case node exponent is \(d/2\).</p>
+<div class="tablewrap"><table class="data">
+<thead><tr><th>\(d\)</th><th>\(n\)-range</th><th>nodes \(\sim n^{x}\)</th><th>time \(\sim n^{x}\)</th><th>worst-case \(x\)</th><th>largest run</th></tr></thead>
+<tbody>
+<tr><td>2</td><td>64&ndash;1024</td><td>1.02</td><td>1.20</td><td>1.0</td><td>\(n{=}1024\): 0.07&thinsp;s</td></tr>
+<tr><td>3</td><td>50&ndash;800</td><td>1.04</td><td>1.31</td><td>1.5</td><td>\(n{=}800\): 0.25&thinsp;s</td></tr>
+<tr><td>4</td><td>25&ndash;400</td><td>1.33</td><td>1.43</td><td>2.0</td><td>\(n{=}400\): 0.50&thinsp;s</td></tr>
+<tr><td>5</td><td>25&ndash;200</td><td>1.68</td><td>1.84</td><td>2.5</td><td>\(n{=}200\): 1.34&thinsp;s</td></tr>
+<tr><td>6</td><td>20&ndash;80</td><td>2.28</td><td>2.43</td><td>3.0</td><td>\(n{=}80\): 1.51&thinsp;s</td></tr>
+</tbody></table></div>
+
+<p class="tabcap"><b>Table 2.</b> Recursion-tree size, \(d/2\)- vs.&nbsp;\(d/3\)-algorithm, same spherical-front instances (reference point \(1.2\cdot\mathbf 1\)). &ldquo;exp&rdquo; is the empirical node-count exponent; predicted worst-case exponents are \(d/2\) and \(d/3\). Wall-clock times illustrate the symbolic overhead of the \(d/3\) algorithm.</p>
+<div class="tablewrap"><table class="data data-tight">
+<thead>
+<tr><th rowspan="2">\(d\)</th><th rowspan="2">\(n\)-range</th><th colspan="2">node exponent</th><th colspan="2">nodes at largest \(n\)</th><th colspan="2">time at largest \(n\)</th></tr>
+<tr><th>\(d/2\)-alg</th><th>\(d/3\)-alg</th><th>\(d/2\)-alg</th><th>\(d/3\)-alg</th><th>\(d/2\)-alg</th><th>\(d/3\)-alg</th></tr>
+</thead>
+<tbody>
+<tr><td>3</td><td>16&ndash;256</td><td>1.21</td><td>1.12</td><td>1267</td><td>251</td><td>0.07&thinsp;s</td><td>0.13&thinsp;s</td></tr>
+<tr><td>4</td><td>12&ndash;96</td><td>1.70</td><td>1.49</td><td>2485</td><td>545</td><td>0.12&thinsp;s</td><td>0.49&thinsp;s</td></tr>
+<tr><td>5</td><td>8&ndash;32</td><td>2.18</td><td>1.70</td><td>1823</td><td>393</td><td>0.08&thinsp;s</td><td>0.50&thinsp;s</td></tr>
+</tbody></table></div>
+
+<p>Table 2 compares the two recursion trees on identical instances. The \(d/3\)-algorithm&rsquo;s tree is consistently a factor 4&ndash;5 smaller and grows with a visibly smaller exponent&mdash;the theoretical improvement is measurable in exactly the quantity the analysis bounds. Its wall-clock time is nevertheless \(2\)&ndash;\(7\times\) higher at these sizes: the per-node work (staircase construction, condition merging, pruning, symbolic base-case integration) outweighs the smaller tree. Notably, on these instances the adaptive throttle never needs to fire a compression and the basic function stays a single term throughout; when compression is <i>forced</i> to fire (e.g.&nbsp;every 3 levels with a zero size threshold), results are unchanged but term counts reach the hundreds and running time grows sharply&mdash;consistent with the analysis, which permits only \(\Oh(1)\) compressions per root&ndash;leaf path. Both implementations agree to at least \(10^{-8}\) relative error on every instance.</p>
+
+<h1 data-num="6">Usage</h1>
+
+<pre class="codeblock"># O(n^{d/2} log n), practical:
+from chan_hypervolume import hypervolume
+# O(n^{d/3} polylog n), reference:
+from chan_orthant_dby3 import hypervolume_dby3
+
+points = [(0.2, 0.7, 0.3), (0.5, 0.2, 0.6), (0.8, 0.4, 0.1)]
+# minimization; use maximize=True otherwise:
+ref    = (1.0, 1.0, 1.0)
+
+hv  = hypervolume(points, ref)
+hv3 = hypervolume_dby3(points, ref)   # identical value, d &gt;= 3</pre>
+
+<p>Both functions accept <code>maximize=True</code> and <code>prefilter=False</code>; the general Klee&rsquo;s-measure entry point <code>union_volume(boxes)</code> in <code>chan_hypervolume.py</code> accepts arbitrary boxes as <code>(lo, hi)</code> corner pairs, and <code>orthant_union_volume(orthants, lo, hi)</code> in <code>chan_orthant_dby3.py</code> accepts arbitrary-orientation orthants as <code>(vertex, signs)</code> pairs measured inside a domain box. The solver classes (<code>ChanMeasure</code>, <code>ChanOrthantMeasure</code>) expose node counts and, for the latter, the compression interval and a switch to disable compression.</p>
+
+<h1 data-num="7">Conclusions</h1>
+
+<p class="opening">Chan&rsquo;s &ldquo;easy&rdquo; algorithm fully lives up to its name: the \(d/2\) implementation is under 300 lines of executable logic, uses no data structure beyond sorted lists, and computes exact hypervolumes of fronts with hundreds of points in seconds up to \(d=7\). The \(d/3\) orthant algorithm is a different kind of object: its recursion is just as simple, but the basic-function algebra it stands on&mdash;closure of step-function predicates under integration, and grid-averaging compression&mdash;is intricate to implement correctly, chiefly because of positive-measure ties between step functions. We believe the implementation presented here is the first of that algorithm; its recursion-tree scaling matches the \(d/3\) theory, and it provides an executable specification against which faster engineered variants (or an implementation of the hypercube case) can be checked.</p>
+<p><b class="runin">Code availability.</b> Both modules, the test suites, and the benchmark scripts are available in the accompanying repository (<code>FastHVChan</code>); everything depends only on the Python standard library.</p>
+<p><b class="runin">Acknowledgements.</b> The implementations and this manuscript were co-created by the author and Claude Fable&nbsp;5 (Anthropic) in an interactive agentic coding session, working directly from Chan&rsquo;s paper [4].</p>
+
+<h1 data-notoc="1" data-title="References">References</h1>
+
+<p class="ref">[1] V. Klee. Can the measure of \(\bigcup[a_i,b_i]\) be computed in less than \(O(n\log n)\) steps? <i>American Mathematical Monthly</i>, 84:284&ndash;285, 1977.</p>
+<p class="ref">[2] M. H. Overmars and C.-K. Yap. New upper bounds in Klee&rsquo;s measure problem. <i>SIAM Journal on Computing</i>, 20(6):1034&ndash;1045, 1991.</p>
+<p class="ref">[3] T. M. Chan. A (slightly) faster algorithm for Klee&rsquo;s measure problem. <i>Computational Geometry: Theory and Applications</i>, 43(3):243&ndash;250, 2010.</p>
+<p class="ref">[4] T. M. Chan. Klee&rsquo;s measure problem made easy. In <i>Proc. 54th IEEE Symposium on Foundations of Computer Science (FOCS)</i>, pages 410&ndash;419, 2013.</p>
+<p class="ref">[5] K. Bringmann. An improved algorithm for Klee&rsquo;s measure problem on fat boxes. <i>Computational Geometry: Theory and Applications</i>, 45(5&ndash;6):225&ndash;233, 2012.</p>
+<p class="ref">[6] H. Y&#305;ld&#305;z and S. Suri. On Klee&rsquo;s measure problem for grounded boxes. In <i>Proc. 28th ACM Symposium on Computational Geometry (SoCG)</i>, pages 111&ndash;120, 2012.</p>
+<p class="ref">[7] E. Zitzler and L. Thiele. Multiobjective evolutionary algorithms: A comparative case study and the strength Pareto approach. <i>IEEE Transactions on Evolutionary Computation</i>, 3(4):257&ndash;271, 1999.</p>
+<p class="ref">[8] N. Beume, B. Naujoks, and M. Emmerich. SMS-EMOA: Multiobjective selection based on dominated hypervolume. <i>European Journal of Operational Research</i>, 181(3):1653&ndash;1669, 2007.</p>
+<p class="ref">[9] N. Beume, C. M. Fonseca, M. L&oacute;pez-Ib&aacute;&ntilde;ez, L. Paquete, and J. Vahrenhold. On the complexity of computing the hypervolume indicator. <i>IEEE Transactions on Evolutionary Computation</i>, 13(5):1075&ndash;1082, 2009.</p>
+<p class="ref">[10] L. While, P. Hingston, L. Barone, and S. Huband. A faster algorithm for calculating hypervolume. <i>IEEE Transactions on Evolutionary Computation</i>, 10(1):29&ndash;38, 2006.</p>
+<p class="ref">[11] L. While, L. Bradstreet, and L. Barone. A fast way of calculating exact hypervolumes. <i>IEEE Transactions on Evolutionary Computation</i>, 16(1):86&ndash;95, 2012.</p>
+<p class="ref">[12] A. P. Guerreiro, C. M. Fonseca, and M. T. M. Emmerich. A fast dimension-sweep algorithm for the hypervolume indicator in four dimensions. In <i>Proc. 24th Canadian Conference on Computational Geometry (CCCG)</i>, pages 77&ndash;82, 2012.</p>
+<p class="ref">[13] A. P. Guerreiro, C. M. Fonseca, and L. Paquete. The hypervolume indicator: Computational problems and algorithms. <i>ACM Computing Surveys</i>, 54(6):119:1&ndash;119:42, 2021.</p>
+<p class="ref">[14] M. S. Paterson and F. F. Yao. Optimal binary space partitions for orthogonal objects. <i>Journal of Algorithms</i>, 13(1):99&ndash;113, 1992.</p>
+
+<div class="closing">The one-line summary: <i>simplify until every box is at least two-sided-degenerate, cut at a weighted median, and for orthants absorb what re-coordination cannot remove into a step-function integrand that stays closed under integration.</i></div>
+<div class="colophon">&#10087;</div>
